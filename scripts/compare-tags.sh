@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GRAPH="${1:-$ROOT/artifacts/hatfield-uk.aegis}"
 OUT="${2:-$ROOT/artifacts/tag-comparison}"
-OLD_TAG="${OLD_TAG:-v0.1.0-experimental}"
+OLD_TAG="${OLD_TAG:-v0.2.0-experimental}"
 QUERIES="${QUERIES:-100}"
 REPEATS="${REPEATS:-5}"
 BATCH="${BATCH:-8}"
@@ -35,8 +35,27 @@ import json, sys
 old=json.load(open(sys.argv[1])); cur=json.load(open(sys.argv[2]))
 def row(d, name): return next(x for x in d['summary'] if x['algorithm']==name)
 o=row(old,'aegis'); c=row(cur,'aegis')
-def pct(a,b): return (a-b)*100/a if a else 0
-text=f'''# ACBS tag comparison\n\n| Metric | {old["version"]} | {cur["version"]} | Change |\n|---|---:|---:|---:|\n| p50 | {o["medianNs"]/1e3:.2f} µs | {c["medianNs"]/1e3:.2f} µs | {pct(o["medianNs"],c["medianNs"]):+.1f}% faster |\n| p95 | {o["p95Ns"]/1e3:.2f} µs | {c["p95Ns"]/1e3:.2f} µs | {pct(o["p95Ns"],c["p95Ns"]):+.1f}% faster |\n| median relaxed | {o["medianRelaxed"]} | {c["medianRelaxed"]} | {pct(o["medianRelaxed"],c["medianRelaxed"]):+.1f}% lower |\n| correct | {o["correct"]}/{o["runs"]} | {c["correct"]}/{c["runs"]} | — |\n'''
+def latency_change(a,b):
+    if not a: return 'n/a'
+    pct=(b-a)*100/a
+    if pct < 0: return f'{abs(pct):.1f}% faster'
+    if pct > 0: return f'{pct:.1f}% slower'
+    return 'unchanged'
+def work_change(a,b):
+    if not a: return 'n/a'
+    pct=(b-a)*100/a
+    if pct < 0: return f'{abs(pct):.1f}% lower'
+    if pct > 0: return f'{pct:.1f}% higher'
+    return 'unchanged'
+text=f'''# ACBS tag comparison
+
+| Metric | {old["version"]} | {cur["version"]} | Change |
+|---|---:|---:|---:|
+| p50 | {o["medianNs"]/1e3:.2f} µs | {c["medianNs"]/1e3:.2f} µs | {latency_change(o["medianNs"],c["medianNs"])} |
+| p95 | {o["p95Ns"]/1e3:.2f} µs | {c["p95Ns"]/1e3:.2f} µs | {latency_change(o["p95Ns"],c["p95Ns"])} |
+| median relaxed | {o["medianRelaxed"]} | {c["medianRelaxed"]} | {work_change(o["medianRelaxed"],c["medianRelaxed"])} |
+| correct | {o["correct"]}/{o["runs"]} | {c["correct"]}/{c["runs"]} | — |
+'''
 open(sys.argv[3],'w').write(text)
 print(text)
 PY
