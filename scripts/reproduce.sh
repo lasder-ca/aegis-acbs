@@ -24,3 +24,32 @@ AEGIS_QUERIES=30 AEGIS_REPEATS=3 AEGIS_BATCH=8 \
 AEGIS_ORDER=interleaved AEGIS_MEASURE_MEMORY=1 \
 AEGIS_SEEDS="1010 20260717 424242" \
 scripts/benchmark-matrix.sh
+
+# Exercise isolated replay with deliberately permissive thresholds. This is a
+# command/reporter fixture, not a claim that microsecond Hatfield differences
+# are materially meaningful.
+rm -rf artifacts/tail-replay
+mkdir -p artifacts/tail-replay
+bin/aegis validate-regret \
+  --input-dir artifacts/tail-validation \
+  --ratio-threshold 0.1 \
+  --penalty-floor 1ns \
+  --min-queries 1 \
+  --max-meaningful-rate 1 \
+  --top 3 \
+  --fail-on-violation=false \
+  --output artifacts/tail-replay/regret-validation.json \
+  --csv artifacts/tail-replay/regret-validation.csv \
+  --html artifacts/tail-replay/regret-validation.html
+bin/aegis replay-regret \
+  --graph artifacts/repro-graphs/hatfield-time.aegis \
+  --validation artifacts/tail-replay/regret-validation.json \
+  --input-root artifacts/tail-validation \
+  --runs 7 \
+  --warmup 2 \
+  --ratio-threshold 0.1 \
+  --penalty-floor 1ns \
+  --top 3 \
+  --output artifacts/tail-replay/regret-replay.json \
+  --csv artifacts/tail-replay/regret-replay.csv \
+  --html artifacts/tail-replay/regret-replay.html

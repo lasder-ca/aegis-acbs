@@ -45,6 +45,8 @@ func main() {
 		err = diagnose(os.Args[2:])
 	case "validate-regret":
 		err = validateRegret(os.Args[2:])
+	case "replay-regret":
+		err = replayRegret(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -74,6 +76,7 @@ Usage:
   aegis stress --graph city.aegis --queries 10000 --workers 8 --verify-every 100
   aegis diagnose --input benchmark.json --output regret.json --csv regret.csv --html regret.html
   aegis validate-regret --input-dir validation --min-queries 10000 --output validation.json --csv validation.csv --html validation.html
+  aegis replay-regret --graph city.aegis --validation validation.json --input-root validation --output replay.json --csv replay.csv --html replay.html
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -443,6 +446,69 @@ func validateRegret(args []string) error {
 	}
 	if *failOnViolation && !report.Passed {
 		return errors.New("regret validation did not meet the configured acceptance criteria")
+	}
+	return nil
+}
+
+func replayRegret(args []string) error {
+	fs := flag.NewFlagSet("replay-regret", flag.ContinueOnError)
+	graphPath := fs.String("graph", "", "Aegis graph used by the source benchmark reports")
+	validationPath := fs.String("validation", "", "regret-validation JSON report")
+	inputRoot := fs.String("input-root", "", "root for source report paths; defaults to validation directory")
+	runs := fs.Int("runs", 31, "timed replays per algorithm and case")
+	warmup := fs.Int("warmup", 5, "warmup replays per algorithm and case")
+	timeout := fs.Duration("timeout", 30*time.Second, "per-search timeout")
+	ratio := fs.Float64("ratio-threshold", 1.25, "minimum replay runtime ratio for a meaningful slowdown")
+	penalty := fs.Duration("penalty-floor", time.Millisecond, "minimum replay absolute slowdown")
+	top := fs.Int("top", 50, "maximum validation outliers to replay")
+	output := fs.String("output", "regret-replay.json", "replay JSON output")
+	csvOut := fs.String("csv", "regret-replay.csv", "replay CSV output; empty disables")
+	htmlOut := fs.String("html", "regret-replay.html", "self-contained replay HTML output; empty disables")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *graphPath == "" || *validationPath == "" {
+		return errors.New("--graph and --validation are required")
+	}
+	g, err := graph.Load(*graphPath)
+	if err != nil {
+		return err
+	}
+	report, err := bench.ReplayRegret(context.Background(), g, *validationPath, *inputRoot, bench.RegretReplayConfig{
+		Runs: *runs, Warmup: *warmup, Timeout: *timeout, RatioThreshold: *ratio, PenaltyFloorNS: penalty.Nanoseconds(), Top: *top,
+	})
+	if err != nil {
+		return err
+	}
+	bench.SortRegretReplayCases(&report)
+	if err := bench.WriteRegretReplayJSON(*output, report); err != nil {
+		return err
+	}
+	if *csvOut != "" {
+		if err := bench.WriteRegretReplayCSV(*csvOut, report); err != nil {
+			return err
+		}
+	}
+	if *htmlOut != "" {
+		if err := bench.WriteRegretReplayHTML(*htmlOut, report); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("replay         requested=%d replayed=%d reproduced=%d scheduler-tail=%d persistent=%d not-reproduced=%d correct=%v\n",
+		report.RequestedCases, report.ReplayedCases, report.ReproducedMeaningful, report.AdaptiveSchedulerTail, report.PersistentClassical, report.NotReproduced, report.AllCorrect)
+	for _, c := range report.Cases {
+		fmt.Printf("case           run=%s query=%d class=%s original=%.3fx/%.3fms replay=%s %.3fx/%.3fms static=%.3fms classification=%s chunks=%d upper-chunk=%d\n",
+			c.SourceReport, c.QueryIndex, c.Class, c.OriginalRatio, float64(c.OriginalPenaltyNS)/1e6, c.FastestClassical, c.AegisRatio, float64(c.AegisPenaltyNS)/1e6, float64(c.StaticNS)/1e6, c.Classification, len(c.Trace), c.TraceUpperBoundChunk)
+	}
+	fmt.Println("replay report:", *output)
+	if *csvOut != "" {
+		fmt.Println("replay csv:", *csvOut)
+	}
+	if *htmlOut != "" {
+		fmt.Println("replay visual report:", *htmlOut)
+	}
+	if !report.AllCorrect {
+		return errors.New("one or more replayed algorithms returned an incorrect path")
 	}
 	return nil
 }

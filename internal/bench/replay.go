@@ -1,0 +1,376 @@
+package bench
+
+import (
+	"context"
+	"encoding/csv"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"time"
+
+	"github.com/lasder-ca/aegis-acbs/internal/graph"
+	"github.com/lasder-ca/aegis-acbs/internal/search"
+	"github.com/lasder-ca/aegis-acbs/internal/version"
+)
+
+// RegretReplayConfig controls isolated replay of meaningful validation cases.
+type RegretReplayConfig struct {
+	Runs           int           `json:"runs"`
+	Warmup         int           `json:"warmup"`
+	Timeout        time.Duration `json:"-"`
+	TimeoutNS      int64         `json:"timeoutNs"`
+	RatioThreshold float64       `json:"ratioThreshold"`
+	PenaltyFloorNS int64         `json:"penaltyFloorNs"`
+	Top            int           `json:"top"`
+}
+
+type ReplayAlgorithmSummary struct {
+	Algorithm      search.Algorithm `json:"algorithm"`
+	Runs           int              `json:"runs"`
+	MeanNS         int64            `json:"meanNs"`
+	MedianNS       int64            `json:"medianNs"`
+	MinNS          int64            `json:"minNs"`
+	MaxNS          int64            `json:"maxNs"`
+	P95NS          int64            `json:"p95Ns"`
+	MedianExpanded uint64           `json:"medianExpanded"`
+	MedianRelaxed  uint64           `json:"medianRelaxed"`
+	AllCorrect     bool             `json:"allCorrect"`
+	Error          string           `json:"error,omitempty"`
+}
+
+type RegretReplayCase struct {
+	SourceReport         string                   `json:"sourceReport"`
+	QueryIndex           int                      `json:"queryIndex"`
+	Class                string                   `json:"class"`
+	SourceID             int64                    `json:"sourceId"`
+	TargetID             int64                    `json:"targetId"`
+	StraightLineMeters   float64                  `json:"straightLineMeters"`
+	DistanceRatio        float64                  `json:"distanceRatio"`
+	OriginalBaseline     search.Algorithm         `json:"originalBaseline"`
+	OriginalRatio        float64                  `json:"originalRatio"`
+	OriginalPenaltyNS    int64                    `json:"originalPenaltyNs"`
+	Algorithms           []ReplayAlgorithmSummary `json:"algorithms"`
+	FastestClassical     search.Algorithm         `json:"fastestClassical"`
+	FastestClassicalNS   int64                    `json:"fastestClassicalNs"`
+	AegisNS              int64                    `json:"aegisNs"`
+	AegisRatio           float64                  `json:"aegisRatio"`
+	AegisPenaltyNS       int64                    `json:"aegisPenaltyNs"`
+	ReplayMeaningful     bool                     `json:"replayMeaningful"`
+	StaticNS             int64                    `json:"staticNs"`
+	StaticVsAegis        float64                  `json:"staticVsAegis"`
+	StaticAdvantageNS    int64                    `json:"staticAdvantageNs"`
+	Classification       string                   `json:"classification"`
+	AllCorrect           bool                     `json:"allCorrect"`
+	Trace                []search.ACBSTraceEvent  `json:"trace"`
+	TraceUpperBoundChunk uint64                   `json:"traceUpperBoundChunk,omitempty"`
+}
+
+type RegretReplayReport struct {
+	Version               string             `json:"version"`
+	GeneratedAt           time.Time          `json:"generatedAt"`
+	AegisVersion          string             `json:"aegisVersion"`
+	GraphName             string             `json:"graphName"`
+	Metric                string             `json:"metric"`
+	ValidationPath        string             `json:"validationPath"`
+	Config                RegretReplayConfig `json:"config"`
+	Cases                 []RegretReplayCase `json:"cases"`
+	RequestedCases        int                `json:"requestedCases"`
+	ReplayedCases         int                `json:"replayedCases"`
+	ReproducedMeaningful  int                `json:"reproducedMeaningful"`
+	AdaptiveSchedulerTail int                `json:"adaptiveSchedulerTail"`
+	PersistentClassical   int                `json:"persistentClassical"`
+	NotReproduced         int                `json:"notReproduced"`
+	AllCorrect            bool               `json:"allCorrect"`
+}
+
+func LoadRegretValidation(path string) (RegretValidationReport, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return RegretValidationReport{}, err
+	}
+	var report RegretValidationReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		return RegretValidationReport{}, err
+	}
+	return report, nil
+}
+
+// ReplayRegret isolates validation outliers, remeasures every implementation in
+// an interleaved loop, and captures one deterministic ACBS scheduler trace.
+func ReplayRegret(ctx context.Context, g *graph.Graph, validationPath, inputRoot string, cfg RegretReplayConfig) (RegretReplayReport, error) {
+	if cfg.Runs <= 0 {
+		cfg.Runs = 31
+	}
+	if cfg.Warmup < 0 {
+		return RegretReplayReport{}, errors.New("warmup must be >= 0")
+	}
+	if cfg.RatioThreshold <= 0 {
+		cfg.RatioThreshold = 1.25
+	}
+	if cfg.PenaltyFloorNS <= 0 {
+		cfg.PenaltyFloorNS = int64(time.Millisecond)
+	}
+	if cfg.Top <= 0 {
+		cfg.Top = 50
+	}
+	if cfg.Timeout <= 0 && cfg.TimeoutNS > 0 {
+		cfg.Timeout = time.Duration(cfg.TimeoutNS)
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = 30 * time.Second
+	}
+	cfg.TimeoutNS = cfg.Timeout.Nanoseconds()
+
+	validation, err := LoadRegretValidation(validationPath)
+	if err != nil {
+		return RegretReplayReport{}, err
+	}
+	if inputRoot == "" {
+		inputRoot = filepath.Dir(validationPath)
+	}
+	absRoot, err := filepath.Abs(inputRoot)
+	if err != nil {
+		return RegretReplayReport{}, err
+	}
+	rows := validation.TopMeaningful
+	if len(rows) > cfg.Top {
+		rows = rows[:cfg.Top]
+	}
+	out := RegretReplayReport{
+		Version: "regret-replay-v1", GeneratedAt: time.Now().UTC(), AegisVersion: version.Version,
+		GraphName: g.Name, Metric: string(g.Metric), ValidationPath: validationPath,
+		Config: cfg, RequestedCases: len(rows), AllCorrect: true,
+	}
+	if len(rows) == 0 {
+		return out, nil
+	}
+
+	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.AegisStatic, search.Aegis}
+	for caseIndex, top := range rows {
+		reportPath := filepath.Join(absRoot, filepath.FromSlash(top.Path))
+		sourceReport, err := LoadReport(reportPath)
+		if err != nil {
+			return out, fmt.Errorf("load source report %s: %w", reportPath, err)
+		}
+		if top.QueryIndex < 0 || top.QueryIndex >= len(sourceReport.Queries) {
+			return out, fmt.Errorf("query index %d is out of range in %s", top.QueryIndex, reportPath)
+		}
+		source, okS := g.IndexByID(top.SourceID)
+		target, okT := g.IndexByID(top.TargetID)
+		if !okS || !okT {
+			return out, fmt.Errorf("query %d node IDs are not present in graph", top.QueryIndex)
+		}
+		q := Query{Source: source, Target: target, StraightLineMeters: top.StraightLineMeters, Class: top.Class}
+		caseReport, err := replayOneCase(ctx, g, q, algs, cfg, caseIndex)
+		if err != nil {
+			return out, fmt.Errorf("replay %s query %d: %w", top.Path, top.QueryIndex, err)
+		}
+		caseReport.SourceReport = top.Path
+		caseReport.QueryIndex = top.QueryIndex
+		caseReport.Class = top.Class
+		caseReport.SourceID = top.SourceID
+		caseReport.TargetID = top.TargetID
+		caseReport.StraightLineMeters = top.StraightLineMeters
+		caseReport.DistanceRatio = top.DistanceRatio
+		caseReport.OriginalBaseline = top.FastestClassical
+		caseReport.OriginalRatio = top.RuntimeRatio
+		caseReport.OriginalPenaltyNS = top.AbsolutePenaltyNS
+		out.Cases = append(out.Cases, caseReport)
+		out.ReplayedCases++
+		out.AllCorrect = out.AllCorrect && caseReport.AllCorrect
+		if caseReport.ReplayMeaningful {
+			out.ReproducedMeaningful++
+		}
+		switch caseReport.Classification {
+		case "adaptive-scheduler-tail":
+			out.AdaptiveSchedulerTail++
+		case "persistent-classical-tail":
+			out.PersistentClassical++
+		case "not-reproduced":
+			out.NotReproduced++
+		}
+	}
+	return out, nil
+}
+
+func replayOneCase(ctx context.Context, g *graph.Graph, q Query, algs []search.Algorithm, cfg RegretReplayConfig, caseIndex int) (RegretReplayCase, error) {
+	for i := 0; i < cfg.Warmup; i++ {
+		for _, alg := range rotated(algs, i+caseIndex) {
+			if _, err := runReplay(ctx, g, q, alg, cfg.Timeout); err != nil {
+				return RegretReplayCase{}, err
+			}
+		}
+	}
+
+	buckets := make(map[search.Algorithm][]search.Result, len(algs))
+	var expectedReachable bool
+	var expectedDistance uint64
+	haveExpected := false
+	allCorrect := true
+	for run := 0; run < cfg.Runs; run++ {
+		for _, alg := range rotated(algs, run+caseIndex) {
+			r, err := runReplay(ctx, g, q, alg, cfg.Timeout)
+			if err != nil {
+				return RegretReplayCase{}, err
+			}
+			if alg == search.Dijkstra && !haveExpected {
+				expectedReachable, expectedDistance, haveExpected = r.Stats.Reachable, r.Stats.Distance, true
+			}
+			buckets[alg] = append(buckets[alg], r)
+		}
+	}
+	if !haveExpected {
+		return RegretReplayCase{}, errors.New("Dijkstra reference was not measured")
+	}
+
+	out := RegretReplayCase{AllCorrect: true}
+	summaries := make(map[search.Algorithm]ReplayAlgorithmSummary, len(algs))
+	for _, alg := range algs {
+		results := buckets[alg]
+		durations := make([]int64, 0, len(results))
+		expanded := make([]uint64, 0, len(results))
+		relaxed := make([]uint64, 0, len(results))
+		correct := true
+		for _, r := range results {
+			durations = append(durations, r.Stats.DurationNS)
+			expanded = append(expanded, r.Stats.Expanded)
+			relaxed = append(relaxed, r.Stats.Relaxed)
+			if r.Stats.Reachable != expectedReachable || (expectedReachable && r.Stats.Distance != expectedDistance) || !search.Validate(g, q.Source, q.Target, r) {
+				correct = false
+			}
+		}
+		allCorrect = allCorrect && correct
+		summary := ReplayAlgorithmSummary{Algorithm: alg, Runs: len(results), AllCorrect: correct}
+		if len(durations) > 0 {
+			summary.MeanNS = meanInt64(durations)
+			summary.MedianNS = percentileInt64(durations, .5)
+			summary.MinNS = percentileInt64(durations, 0)
+			summary.MaxNS = percentileInt64(durations, 1)
+			summary.P95NS = percentileInt64(durations, .95)
+			summary.MedianExpanded = percentileUint64(expanded, .5)
+			summary.MedianRelaxed = percentileUint64(relaxed, .5)
+		}
+		summaries[alg] = summary
+		out.Algorithms = append(out.Algorithms, summary)
+	}
+	out.AllCorrect = allCorrect
+
+	for _, alg := range []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar} {
+		s := summaries[alg]
+		if s.MedianNS <= 0 {
+			continue
+		}
+		if out.FastestClassicalNS == 0 || s.MedianNS < out.FastestClassicalNS {
+			out.FastestClassicalNS = s.MedianNS
+			out.FastestClassical = alg
+		}
+	}
+	aegis := summaries[search.Aegis]
+	static := summaries[search.AegisStatic]
+	out.AegisNS = aegis.MedianNS
+	out.StaticNS = static.MedianNS
+	if out.FastestClassicalNS > 0 && out.AegisNS > 0 {
+		out.AegisRatio = float64(out.AegisNS) / float64(out.FastestClassicalNS)
+		out.AegisPenaltyNS = out.AegisNS - out.FastestClassicalNS
+		if out.AegisPenaltyNS < 0 {
+			out.AegisPenaltyNS = 0
+		}
+	}
+	if out.AegisNS > 0 && out.StaticNS > 0 {
+		out.StaticVsAegis = float64(out.StaticNS) / float64(out.AegisNS)
+		out.StaticAdvantageNS = out.AegisNS - out.StaticNS
+		if out.StaticAdvantageNS < 0 {
+			out.StaticAdvantageNS = 0
+		}
+	}
+	out.ReplayMeaningful = out.AegisRatio >= cfg.RatioThreshold && out.AegisPenaltyNS >= cfg.PenaltyFloorNS
+	switch {
+	case !out.ReplayMeaningful:
+		out.Classification = "not-reproduced"
+	case out.StaticAdvantageNS >= cfg.PenaltyFloorNS/2 && out.StaticVsAegis <= .95:
+		out.Classification = "adaptive-scheduler-tail"
+	default:
+		out.Classification = "persistent-classical-tail"
+	}
+
+	var trace []search.ACBSTraceEvent
+	traceCtx := search.WithACBSTrace(ctx, func(event search.ACBSTraceEvent) {
+		trace = append(trace, event)
+	})
+	traced, err := runReplay(traceCtx, g, q, search.Aegis, cfg.Timeout)
+	if err != nil {
+		return RegretReplayCase{}, err
+	}
+	if traced.Stats.Reachable != expectedReachable || (expectedReachable && traced.Stats.Distance != expectedDistance) || !search.Validate(g, q.Source, q.Target, traced) {
+		out.AllCorrect = false
+	}
+	out.Trace = trace
+	for _, event := range trace {
+		if event.HadUpperBoundAfter {
+			out.TraceUpperBoundChunk = event.Chunk
+			break
+		}
+	}
+	return out, nil
+}
+
+func runReplay(parent context.Context, g *graph.Graph, q Query, alg search.Algorithm, timeout time.Duration) (search.Result, error) {
+	ctx := parent
+	cancel := func() {}
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(parent, timeout)
+	}
+	defer cancel()
+	return search.Run(ctx, g, q.Source, q.Target, alg)
+}
+
+func WriteRegretReplayJSON(path string, report RegretReplayReport) error {
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	if err := w.Write([]string{"source_report", "query_index", "class", "source_id", "target_id", "distance_km", "original_baseline", "original_ratio", "original_penalty_ms", "replay_baseline", "aegis_median_ms", "baseline_median_ms", "replay_ratio", "replay_penalty_ms", "static_median_ms", "static_vs_aegis", "classification", "trace_chunks", "upper_bound_chunk", "all_correct"}); err != nil {
+		return err
+	}
+	for _, c := range report.Cases {
+		record := []string{
+			c.SourceReport, strconv.Itoa(c.QueryIndex), c.Class, strconv.FormatInt(c.SourceID, 10), strconv.FormatInt(c.TargetID, 10),
+			fmt.Sprintf("%.6f", c.StraightLineMeters/1000), string(c.OriginalBaseline), fmt.Sprintf("%.6f", c.OriginalRatio), fmt.Sprintf("%.6f", float64(c.OriginalPenaltyNS)/1e6),
+			string(c.FastestClassical), fmt.Sprintf("%.6f", float64(c.AegisNS)/1e6), fmt.Sprintf("%.6f", float64(c.FastestClassicalNS)/1e6), fmt.Sprintf("%.6f", c.AegisRatio), fmt.Sprintf("%.6f", float64(c.AegisPenaltyNS)/1e6),
+			fmt.Sprintf("%.6f", float64(c.StaticNS)/1e6), fmt.Sprintf("%.6f", c.StaticVsAegis), c.Classification, strconv.Itoa(len(c.Trace)), strconv.FormatUint(c.TraceUpperBoundChunk, 10), strconv.FormatBool(c.AllCorrect),
+		}
+		if err := w.Write(record); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+// Stable ordering is useful for downstream diffing even if callers construct a
+// report manually.
+func SortRegretReplayCases(report *RegretReplayReport) {
+	sort.Slice(report.Cases, func(i, j int) bool {
+		if report.Cases[i].Classification != report.Cases[j].Classification {
+			return report.Cases[i].Classification < report.Cases[j].Classification
+		}
+		if report.Cases[i].AegisPenaltyNS != report.Cases[j].AegisPenaltyNS {
+			return report.Cases[i].AegisPenaltyNS > report.Cases[j].AegisPenaltyNS
+		}
+		return report.Cases[i].QueryIndex < report.Cases[j].QueryIndex
+	})
+}

@@ -386,3 +386,33 @@ func TestProductionACBSDisablesInactiveIncumbentPruning(t *testing.T) {
 		t.Fatalf("unexpected production scheduler label: %q", production.Stats.SchedulerVersion)
 	}
 }
+
+func TestACBSTraceRecordsSchedulerChunksWithoutChangingResult(t *testing.T) {
+	g := gridGraph(t, 40, 40, true)
+	var events []ACBSTraceEvent
+	ctx := WithACBSTrace(context.Background(), func(event ACBSTraceEvent) {
+		events = append(events, event)
+	})
+	got, err := Run(ctx, g, 0, len(g.Nodes)-1, Aegis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := Run(context.Background(), g, 0, len(g.Nodes)-1, Dijkstra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Stats.Distance != want.Stats.Distance || !Validate(g, 0, len(g.Nodes)-1, got) {
+		t.Fatalf("trace changed result: got=%+v want=%+v", got.Stats, want.Stats)
+	}
+	if len(events) == 0 || uint64(len(events)) != got.Stats.Chunks {
+		t.Fatalf("unexpected trace length %d for %d chunks", len(events), got.Stats.Chunks)
+	}
+	for i, event := range events {
+		if event.Chunk != uint64(i+1) || (event.Direction != "F" && event.Direction != "B") || event.Budget <= 0 {
+			t.Fatalf("invalid event %d: %+v", i, event)
+		}
+		if event.AfterLowerBound < event.BeforeLowerBound {
+			t.Fatalf("lower bound regressed: %+v", event)
+		}
+	}
+}

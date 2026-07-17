@@ -101,6 +101,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 
 	best, meet := inf, -1
 	bestReduced := inf
+	trace := acbsTraceFromContext(ctx)
 	var scoreF, scoreB uint64
 	var sampledF, sampledB bool
 	lastDirection := byte(0)
@@ -157,6 +158,9 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 		beforeRelaxed := stats.Relaxed
 		beforeExpanded := stats.Expanded
 		beforeQueues := qf.Len() + qb.Len()
+		beforeQF, beforeQB := qf.Len(), qb.Len()
+		beforeScoreF, beforeScoreB := scoreF, scoreB
+		beforeBest := best
 		stats.Chunks++
 
 		for used := 0; used < budget; {
@@ -319,6 +323,27 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				scoreB = emaScore(scoreB, instant, sampledB)
 				sampledB = true
 			}
+		}
+		if trace != nil {
+			event := ACBSTraceEvent{
+				Chunk: stats.Chunks, Direction: string([]byte{direction}), Budget: budget,
+				BeforeLowerBound: beforeLB, AfterLowerBound: afterLB, LowerBoundGain: gain, Work: work,
+				RelaxedDelta: stats.Relaxed - beforeRelaxed, ExpandedDelta: stats.Expanded - beforeExpanded,
+				ForwardQueueBefore: beforeQF, BackwardQueueBefore: beforeQB,
+				ForwardQueueAfter: qf.Len(), BackwardQueueAfter: qb.Len(),
+				ForwardScoreBefore:  float64(beforeScoreF) / 1_000_000.0,
+				BackwardScoreBefore: float64(beforeScoreB) / 1_000_000.0,
+				ForwardScoreAfter:   float64(scoreF) / 1_000_000.0,
+				BackwardScoreAfter:  float64(scoreB) / 1_000_000.0,
+				HadUpperBoundBefore: beforeBest != inf, HadUpperBoundAfter: best != inf,
+			}
+			if beforeBest != inf {
+				event.UpperBoundBefore = beforeBest
+			}
+			if best != inf {
+				event.UpperBoundAfter = best
+			}
+			trace(event)
 		}
 	}
 

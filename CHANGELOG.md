@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.10.0-experimental
+
+- Added `aegis replay-regret` to isolate and repeatedly remeasure meaningful tail cases retained by `validate-regret`.
+- Added interleaved replay of Dijkstra, bidirectional Dijkstra, A*, static ACBS, and adaptive ACBS.
+- Added classification into non-reproduced timing noise, adaptive-scheduler tails, and persistent classical-special-case tails.
+- Added opt-in per-chunk ACBS traces with lower-bound gain, work, queue sizes, direction, efficiency scores, and upper-bound discovery.
+- Added self-contained JSON, CSV, and HTML replay reports.
+- Kept the production ACBS scheduler, potential, radix heaps, CSR graph, and exact stopping condition unchanged.
+
 ## v0.9.0-experimental
 
 - Added `aegis validate-regret` for recursively aggregating benchmark reports across seeds and runs.

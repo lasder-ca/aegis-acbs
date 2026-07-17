@@ -196,3 +196,34 @@ aegis validate-regret \
 ```
 
 Report both the observed event rate and its 95% interval. When zero events are observed, also report the exact one-sided upper bound `1 - 0.05^(1/N)`. At N=10,000 this is approximately 0.02995%, not proof that the true rate is zero.
+
+## Isolated tail replay
+
+Large validation matrices can retain a small set of meaningful slowdowns in
+`regret-validation.json`. Do not tune the production scheduler directly from a
+single timed sample. Replay the retained cases first:
+
+```bash
+aegis replay-regret \
+  --graph city-time.aegis \
+  --validation validation/regret-validation.json \
+  --input-root validation \
+  --runs 31 \
+  --warmup 5 \
+  --output validation/regret-replay.json \
+  --csv validation/regret-replay.csv \
+  --html validation/regret-replay.html
+```
+
+Each case is measured with Dijkstra, bidirectional Dijkstra, A*, static ACBS,
+and adaptive ACBS in a rotated interleaved order. The timed runs do not record
+traces. A separate untimed ACBS run then records one event per scheduler chunk.
+
+The replay classification is evidence, not an automatic policy change:
+
+- `not-reproduced` indicates that the validation outlier did not survive repeated isolated measurement.
+- `adaptive-scheduler-tail` indicates that static ACBS materially beat adaptive ACBS under the configured absolute floor.
+- `persistent-classical-tail` indicates that a classical method remained faster, but static scheduling did not explain the difference.
+
+Only repeated `adaptive-scheduler-tail` cases with a shared trace pattern should
+be used to propose a narrow scheduler modification.
