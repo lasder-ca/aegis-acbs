@@ -6,7 +6,8 @@ mkdir -p bin artifacts artifacts/repro-graphs
 
 go test ./...
 go vet ./...
-go build -trimpath -ldflags "-s -w" -o bin/aegis ./cmd/aegis
+VERSION="$(cat VERSION)"
+go build -trimpath -ldflags "-s -w -X github.com/lasder-ca/aegis-acbs/internal/version.Version=$VERSION" -o bin/aegis ./cmd/aegis
 
 bin/aegis import-osm --input benchdata/hatfield-uk.osm --output artifacts/repro-graphs/hatfield-distance.aegis --name hatfield-uk --profile car --metric distance
 bin/aegis import-osm --input benchdata/hatfield-uk.osm --output artifacts/repro-graphs/hatfield-time.aegis --name hatfield-uk --profile car --metric time
