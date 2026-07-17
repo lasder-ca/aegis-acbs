@@ -172,3 +172,27 @@ aegis diagnose \
 ```
 
 The ratio threshold alone is insufficient on very short queries. By default a query is marked meaningful only when ACBS is at least 1.25x slower than the fastest classical baseline **and** loses at least 1 ms in absolute time.
+
+
+## Multi-seed meaningful-slowdown validation
+
+Run resumable validation over a graph:
+
+```bash
+AEGIS_QUERIES=1000 \
+AEGIS_SEEDS="1010 20260717 424242 8675309 123456789 314159265 271828182 161803398 141421356 173205080" \
+scripts/validate-tail.sh city-time.aegis artifacts/tail-validation
+```
+
+The workflow writes one benchmark report per seed, then runs:
+
+```bash
+aegis validate-regret \
+  --input-dir artifacts/tail-validation \
+  --ratio-threshold 1.25 \
+  --penalty-floor 1ms \
+  --min-queries 10000 \
+  --max-meaningful-rate 0
+```
+
+Report both the observed event rate and its 95% interval. When zero events are observed, also report the exact one-sided upper bound `1 - 0.05^(1/N)`. At N=10,000 this is approximately 0.02995%, not proof that the true rate is zero.

@@ -43,6 +43,8 @@ func main() {
 		err = stress(os.Args[2:])
 	case "diagnose":
 		err = diagnose(os.Args[2:])
+	case "validate-regret":
+		err = validateRegret(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -71,6 +73,7 @@ Usage:
   aegis aggregate --input-dir artifacts/benchmarks --output matrix.json --csv matrix.csv --html matrix.html
   aegis stress --graph city.aegis --queries 10000 --workers 8 --verify-every 100
   aegis diagnose --input benchmark.json --output regret.json --csv regret.csv --html regret.html
+  aegis validate-regret --input-dir validation --min-queries 10000 --output validation.json --csv validation.csv --html validation.html
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -386,6 +389,60 @@ func diagnose(args []string) error {
 	}
 	if *htmlOut != "" {
 		fmt.Println("diagnostic visual report:", *htmlOut)
+	}
+	return nil
+}
+
+func validateRegret(args []string) error {
+	fs := flag.NewFlagSet("validate-regret", flag.ContinueOnError)
+	inputDir := fs.String("input-dir", "", "directory containing benchmark JSON reports")
+	algorithm := fs.String("algorithm", "aegis", "algorithm to validate")
+	ratio := fs.Float64("ratio-threshold", 1.25, "minimum runtime ratio for a meaningful slowdown")
+	penalty := fs.Duration("penalty-floor", time.Millisecond, "minimum absolute slowdown for a meaningful slowdown")
+	top := fs.Int("top", 50, "number of meaningful slowdowns to retain")
+	minimumQueries := fs.Int("min-queries", 10000, "minimum total validated queries")
+	maximumMeaningfulRate := fs.Float64("max-meaningful-rate", 0, "maximum allowed meaningful slowdown rate from 0 to 1")
+	output := fs.String("output", "regret-validation.json", "validation JSON output")
+	csvOut := fs.String("csv", "regret-validation.csv", "per-run CSV output; empty disables")
+	htmlOut := fs.String("html", "regret-validation.html", "self-contained validation HTML output; empty disables")
+	failOnViolation := fs.Bool("fail-on-violation", true, "return a non-zero status when validation fails")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *inputDir == "" {
+		return errors.New("--input-dir is required")
+	}
+	report, err := bench.AggregateRegretDirectory(*inputDir, bench.RegretValidationConfig{Algorithm: search.Algorithm(*algorithm), RatioThreshold: *ratio, PenaltyFloorNS: penalty.Nanoseconds(), Top: *top, MinimumQueries: *minimumQueries, MaximumMeaningfulRate: *maximumMeaningfulRate})
+	if err != nil {
+		return err
+	}
+	if err := bench.WriteRegretValidationJSON(*output, report); err != nil {
+		return err
+	}
+	if *csvOut != "" {
+		if err := bench.WriteRegretValidationCSV(*csvOut, report); err != nil {
+			return err
+		}
+	}
+	if *htmlOut != "" {
+		if err := bench.WriteRegretValidationHTML(*htmlOut, report); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("validation     runs=%d queries=%d meaningful=%d rate=%.6f%% wilson95=%.6f%%..%.6f%% zero-event-upper95=%.6f%% correct=%v enough=%v pass=%v\n", report.Files, report.TotalQueries, report.TotalMeaningful, 100*report.MeaningfulRate, 100*report.MeaningfulRateWilsonLow, 100*report.MeaningfulRateWilsonHigh, 100*report.ZeroEventUpper95, report.AllCorrect, report.EnoughQueries, report.Passed)
+	fmt.Printf("tail           ratio(p50/p95/max)=%.3fx/%.3fx/%.3fx penalty(p50/p95/max)=%.3fms/%.3fms/%.3fms\n", report.P50RuntimeRatio, report.P95RuntimeRatio, report.MaxRuntimeRatio, float64(report.P50PenaltyNS)/1e6, float64(report.P95PenaltyNS)/1e6, float64(report.MaxPenaltyNS)/1e6)
+	for _, run := range report.Runs {
+		fmt.Printf("run            metric=%-8s seed=%-10d queries=%-6d meaningful=%-4d p95-ratio=%.3fx max-penalty=%.3fms correct=%v path=%s\n", run.Metric, run.Seed, run.Queries, run.Meaningful, run.P95RuntimeRatio, float64(run.MaxPenaltyNS)/1e6, run.AllCorrect, run.Path)
+	}
+	fmt.Println("validation report:", *output)
+	if *csvOut != "" {
+		fmt.Println("validation csv:", *csvOut)
+	}
+	if *htmlOut != "" {
+		fmt.Println("validation visual report:", *htmlOut)
+	}
+	if *failOnViolation && !report.Passed {
+		return errors.New("regret validation did not meet the configured acceptance criteria")
 	}
 	return nil
 }

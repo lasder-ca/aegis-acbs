@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.0-experimental
+
+- Added `aegis validate-regret` for recursively aggregating benchmark reports across seeds and runs.
+- Added observed meaningful-slowdown rate, Wilson 95% confidence interval, and exact one-sided 95% upper bound when zero events are observed.
+- Added per-run JSON/CSV/HTML validation summaries and top meaningful slowdown retention.
+- Added resumable `scripts/validate-tail.sh` for large multi-seed validation.
+- Added configurable minimum query count and maximum acceptable meaningful-slowdown rate with CI-friendly exit status.
+- Kept the v0.8 ACBS scheduler and search semantics unchanged.
+
 ## v0.8.0-experimental
 
 - Added query-level regret diagnosis in JSON, CSV, and HTML.

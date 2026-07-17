@@ -1,23 +1,21 @@
-# Aegis ACBS v0.8.0-experimental
+# Aegis ACBS v0.9.0-experimental
 
-This release adds query-level regret diagnosis without changing the v0.7 ACBS search policy.
+This release turns the v0.8 query-level diagnosis into a resumable, multi-seed validation workflow. The ACBS search policy is unchanged.
 
 ## Added
 
-- `aegis diagnose` for benchmark JSON reports.
-- Absolute slowdown (`algorithm - fastest classical`) alongside runtime ratios.
-- A default meaningful-slowdown rule: ratio >= 1.25 and absolute penalty >= 1 ms.
-- Top queries ranked independently by absolute penalty and ratio.
-- Query features for diagnosis: distance ratio, endpoint degrees, forward share, switch rate, first-upper-bound fraction, stale-pop rate, and efficiency imbalance.
-- Pearson correlations between absolute slowdown and recorded query/search features.
-- Self-contained diagnostic JSON, CSV, and HTML reports.
-- Source/target degree, distance ratio, and graph diameter in new benchmark reports.
-- Standard benchmark output now reports meaningful slowdown count and p50/p95/max absolute penalty.
+- `aegis validate-regret` recursively reads benchmark JSON reports and aggregates meaningful slowdowns.
+- Per-run and global query counts, slowdown rates, p50/p95/max ratios, and absolute penalties.
+- Wilson 95% confidence intervals for the observed meaningful-slowdown rate.
+- An exact one-sided 95% upper bound when no meaningful slowdown is observed. For 10,000 zero-event queries this upper bound is approximately 0.03%.
+- Acceptance criteria through `--min-queries` and `--max-meaningful-rate`.
+- Self-contained JSON, CSV, and HTML validation reports.
+- `scripts/validate-tail.sh`, which resumes completed seeds and validates the combined result.
 
 ## Deliberately not changed
 
-The production `aegis` scheduler remains `edge-efficiency-v3`. A conservative time-metric tail guard was prototyped, but it made synthetic time-road p50 and p95 slower, so it was rejected rather than shipped.
+The production `aegis` scheduler, potential, radix queues, CSR graph representation, and exact termination condition are identical to v0.8. This release improves evidence quality rather than changing route selection.
 
-## Interpretation
+## Recommended first stage
 
-A high ratio on a microsecond query is not necessarily a practical regression. The diagnostic report separates ratio-only noise from slowdowns with material absolute latency.
+Run 1,000 queries over ten deterministic seeds. If zero meaningful slowdowns are observed, the exact one-sided 95% upper bound is about 0.03%. A second 10,000-query stage can then target fewer seeds for deeper tail coverage.
