@@ -89,6 +89,10 @@ def parse(path):
     }
 old=parse(old_file); cur=parse(current_file)
 def reduction(a,b): return (a-b)*100/a if a else 0
+def change_label(value):
+    if value > 0: return f'{value:.1f}% lower'
+    if value < 0: return f'{abs(value):.1f}% higher'
+    return 'unchanged'
 summary={
  'fixture':'180x180 generated directed-symmetric road grid, corner-to-corner ACBS route',
  'oldVersion':old_version,'currentVersion':current_version,
@@ -106,9 +110,9 @@ Fixture: {summary['fixture']}
 
 | Metric | {old_version} | {current_version} | Change |
 |---|---:|---:|---:|
-| latency | {old['nsPerOpMedian']/1e6:.3f} ms/op | {cur['nsPerOpMedian']/1e6:.3f} ms/op | {summary['improvement']['latencyPercent']:.1f}% lower |
-| allocated bytes | {old['bytesPerOpMedian']:,} B/op | {cur['bytesPerOpMedian']:,} B/op | {summary['improvement']['bytesPercent']:.1f}% lower |
-| allocations | {old['allocsPerOpMedian']:,} allocs/op | {cur['allocsPerOpMedian']:,} allocs/op | {summary['improvement']['allocationsPercent']:.1f}% lower |
+| latency | {old['nsPerOpMedian']/1e6:.3f} ms/op | {cur['nsPerOpMedian']/1e6:.3f} ms/op | {change_label(summary['improvement']['latencyPercent'])} |
+| allocated bytes | {old['bytesPerOpMedian']:,} B/op | {cur['bytesPerOpMedian']:,} B/op | {change_label(summary['improvement']['bytesPercent'])} |
+| allocations | {old['allocsPerOpMedian']:,} allocs/op | {cur['allocsPerOpMedian']:,} allocs/op | {change_label(summary['improvement']['allocationsPercent'])} |
 
 The current version retains priority-queue backing arrays in pooled workspaces. The remaining steady-state allocation is the exact-sized returned path.
 '''
