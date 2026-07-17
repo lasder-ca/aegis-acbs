@@ -34,7 +34,9 @@ func dijkstra(ctx context.Context, g *graph.Graph, source, target int, useHeuris
 			}
 		}
 		cur := pop(q)
+		stats.QueuePops++
 		if cur.distance != dist[cur.node] {
+			stats.StalePops++
 			continue
 		}
 		stats.Expanded++

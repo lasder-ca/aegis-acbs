@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "source": "Geofabrik OpenStreetMap regional PBF extracts",
+  "licence": "ODbL-1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "regions": [
+    {
+      "id": "tokyo-wide",
+      "geofabrikRegion": "kanto",
+      "pbf": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+      "bbox": [139.62, 35.56, 139.90, 35.82]
+    },
+    {
+      "id": "yokohama-wide",
+      "geofabrikRegion": "kanto",
+      "pbf": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+      "bbox": [139.45, 35.30, 139.78, 35.62]
+    },
+    {
+      "id": "osaka-wide",
+      "geofabrikRegion": "kansai",
+      "pbf": "https://download.geofabrik.de/asia/japan/kansai-latest.osm.pbf",
+      "bbox": [135.35, 34.55, 135.75, 34.85]
+    },
+    {
+      "id": "nagoya-wide",
+      "geofabrikRegion": "chubu",
+      "pbf": "https://download.geofabrik.de/asia/japan/chubu-latest.osm.pbf",
+      "bbox": [136.75, 35.02, 137.08, 35.30]
+    }
+  ]
+}

@@ -87,8 +87,8 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 	terminatedByBound := false
 
 	for {
-		frontF, okF := peekValid(qf, df, settledF)
-		frontB, okB := peekValid(qb, db, settledB)
+		frontF, okF := peekValid(qf, df, settledF, &stats)
+		frontB, okB := peekValid(qb, db, settledB, &stats)
 		if !okF || !okB {
 			break
 		}
@@ -139,8 +139,8 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 		stats.Chunks++
 
 		for used := 0; used < budget; {
-			frontF, okF = peekValid(qf, df, settledF)
-			frontB, okB = peekValid(qb, db, settledB)
+			frontF, okF = peekValid(qf, df, settledF, &stats)
+			frontB, okB = peekValid(qb, db, settledB, &stats)
 			if !okF || !okB {
 				break
 			}
@@ -151,7 +151,9 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 
 			if direction == 'F' {
 				cur := pop(qf)
+				stats.QueuePops++
 				if cur.distance != df[cur.node] || settledF[cur.node] {
+					stats.StalePops++
 					continue
 				}
 				settledF[cur.node] = true
@@ -161,6 +163,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					stats.PotentialEvaluations++
 				}
 				if opts.pruning && best != inf && boundCannotImprove(df[cur.node], hForward, best) {
+					stats.PrunedAtPop++
 					stats.BoundPruned++
 					used++
 					continue
@@ -181,6 +184,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 							stats.PotentialEvaluations++
 						}
 						if opts.pruning && best != inf && boundCannotImprove(nd, hf, best) {
+							stats.PrunedAtRelax++
 							stats.BoundPruned++
 						} else {
 							w.touchForward(e.To)
@@ -196,7 +200,9 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				}
 			} else {
 				cur := pop(qb)
+				stats.QueuePops++
 				if cur.distance != db[cur.node] || settledB[cur.node] {
+					stats.StalePops++
 					continue
 				}
 				settledB[cur.node] = true
@@ -206,6 +212,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					stats.PotentialEvaluations++
 				}
 				if opts.pruning && best != inf && boundCannotImprove(db[cur.node], hBackward, best) {
+					stats.PrunedAtPop++
 					stats.BoundPruned++
 					used++
 					continue
@@ -226,6 +233,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 							stats.PotentialEvaluations++
 						}
 						if opts.pruning && best != inf && boundCannotImprove(nd, hb, best) {
+							stats.PrunedAtRelax++
 							stats.BoundPruned++
 						} else {
 							w.touchBackward(e.To)
@@ -242,8 +250,8 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 			}
 		}
 
-		frontF, okF = peekValid(qf, df, settledF)
-		frontB, okB = peekValid(qb, db, settledB)
+		frontF, okF = peekValid(qf, df, settledF, &stats)
+		frontB, okB = peekValid(qb, db, settledB, &stats)
 		afterLB := beforeLB
 		if okF && okB {
 			afterLB = saturatingAdd(frontF.priority, frontB.priority)
@@ -371,6 +379,7 @@ func updateACBSBest(node int, df, db []uint64, best, bestReduced *uint64, meet *
 	if df[node] == inf || db[node] == inf || df[node] > inf-db[node] {
 		return
 	}
+	stats.MeetingChecks++
 	candidate := df[node] + db[node]
 	if candidate >= *best {
 		return
@@ -378,10 +387,10 @@ func updateACBSBest(node int, df, db []uint64, best, bestReduced *uint64, meet *
 	*best = candidate
 	*meet = node
 	*bestReduced = originalToReducedUpperBound(candidate, phiS, phiT)
-	stats.UpperBoundUpdates++
-	if stats.FirstUpperBoundExpanded == 0 {
+	if stats.UpperBoundUpdates == 0 {
 		stats.FirstUpperBoundExpanded = stats.Expanded
 	}
+	stats.UpperBoundUpdates++
 }
 
 func boundCannotImprove(gCost, heuristic, incumbent uint64) bool {
@@ -391,13 +400,15 @@ func boundCannotImprove(gCost, heuristic, incumbent uint64) bool {
 	return heuristic >= incumbent-gCost
 }
 
-func peekValid(q *minHeap, dist []uint64, settled []bool) (item, bool) {
+func peekValid(q *minHeap, dist []uint64, settled []bool, stats *Stats) (item, bool) {
 	for q.Len() > 0 {
 		cur := (*q)[0]
 		if cur.distance == dist[cur.node] && !settled[cur.node] {
 			return cur, true
 		}
 		pop(q)
+		stats.QueuePops++
+		stats.StalePops++
 	}
 	return item{}, false
 }

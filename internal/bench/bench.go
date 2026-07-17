@@ -47,23 +47,34 @@ type Sample struct {
 }
 
 type Summary struct {
-	Algorithm           search.Algorithm `json:"algorithm"`
-	Runs                int              `json:"runs"`
-	Reachable           int              `json:"reachable"`
-	Correct             int              `json:"correct"`
-	MedianNS            int64            `json:"medianNs"`
-	P95NS               int64            `json:"p95Ns"`
-	MedianEdges         uint64           `json:"medianRelaxed"`
-	MedianExpanded      uint64           `json:"medianExpanded"`
-	SpeedupVsDijkstra   float64          `json:"speedupVsDijkstra"`
-	RelaxedReductionPct float64          `json:"relaxedReductionPct"`
+	Algorithm                        search.Algorithm `json:"algorithm"`
+	Runs                             int              `json:"runs"`
+	Reachable                        int              `json:"reachable"`
+	Correct                          int              `json:"correct"`
+	MedianNS                         int64            `json:"medianNs"`
+	P95NS                            int64            `json:"p95Ns"`
+	P99NS                            int64            `json:"p99Ns"`
+	MedianEdges                      uint64           `json:"medianRelaxed"`
+	MedianExpanded                   uint64           `json:"medianExpanded"`
+	MedianQueuePushes                uint64           `json:"medianQueuePushes"`
+	MedianQueuePops                  uint64           `json:"medianQueuePops"`
+	MedianStalePops                  uint64           `json:"medianStalePops"`
+	MedianPrunedAtPop                uint64           `json:"medianPrunedAtPop"`
+	MedianPrunedAtRelax              uint64           `json:"medianPrunedAtRelax"`
+	MedianBoundPruned                uint64           `json:"medianBoundPruned"`
+	RatioOfMediansVsDijkstra         float64          `json:"ratioOfMediansVsDijkstra"`
+	MedianPerQuerySpeedupVsDijkstra  float64          `json:"medianPerQuerySpeedupVsDijkstra"`
+	GeomeanPerQuerySpeedupVsDijkstra float64          `json:"geomeanPerQuerySpeedupVsDijkstra"`
+	RelaxedReductionPct              float64          `json:"relaxedReductionPct"`
+	ExpandedReductionPct             float64          `json:"expandedReductionPct"`
 }
 
-type RegretPoint struct {
-	QueryIndex int              `json:"queryIndex"`
-	Class      string           `json:"class"`
-	Fastest    search.Algorithm `json:"fastest"`
-	Regret     float64          `json:"regret"`
+type RuntimeComparisonPoint struct {
+	QueryIndex      int              `json:"queryIndex"`
+	Class           string           `json:"class"`
+	FastestBaseline search.Algorithm `json:"fastestBaseline"`
+	RelativeRuntime float64          `json:"relativeRuntime"`
+	OracleRegret    float64          `json:"oracleRegret"`
 }
 
 type ClassSummary struct {
@@ -81,23 +92,34 @@ type DirectionTotals struct {
 }
 
 type AegisSummary struct {
-	Comparisons                   int                        `json:"comparisons"`
-	MedianRuntimeRegret           float64                    `json:"medianRuntimeRegret"`
-	P95RuntimeRegret              float64                    `json:"p95RuntimeRegret"`
-	MaxRuntimeRegret              float64                    `json:"maxRuntimeRegret"`
-	MedianSpeedupVsDijkstra       float64                    `json:"medianSpeedupVsDijkstra"`
-	MedianForwardShare            float64                    `json:"medianForwardShare"`
-	P95ForwardShare               float64                    `json:"p95ForwardShare"`
-	MedianDirectionSwitches       uint64                     `json:"medianDirectionSwitches"`
-	MedianChunks                  uint64                     `json:"medianChunks"`
-	MedianFirstUpperBoundFraction float64                    `json:"medianFirstUpperBoundFraction"`
-	MedianTerminationTightness    float64                    `json:"medianTerminationTightness"`
-	MedianBoundPruned             uint64                     `json:"medianBoundPruned"`
-	MedianPotentialEvaluations    uint64                     `json:"medianPotentialEvaluations"`
-	MedianUpperBoundUpdates       uint64                     `json:"medianUpperBoundUpdates"`
-	MedianOptimalityGap           uint64                     `json:"medianOptimalityGap"`
-	DirectionByClass              map[string]DirectionTotals `json:"directionByClass"`
-	Regrets                       []RegretPoint              `json:"regrets"`
+	Comparisons                            int                        `json:"comparisons"`
+	MedianRelativeRuntimeToFastestBaseline float64                    `json:"medianRelativeRuntimeToFastestBaseline"`
+	P95RelativeRuntimeToFastestBaseline    float64                    `json:"p95RelativeRuntimeToFastestBaseline"`
+	MaxRelativeRuntimeToFastestBaseline    float64                    `json:"maxRelativeRuntimeToFastestBaseline"`
+	MedianOracleRegret                     float64                    `json:"medianOracleRegret"`
+	P95OracleRegret                        float64                    `json:"p95OracleRegret"`
+	MaxOracleRegret                        float64                    `json:"maxOracleRegret"`
+	RatioOfMediansVsDijkstra               float64                    `json:"ratioOfMediansVsDijkstra"`
+	MedianPerQuerySpeedupVsDijkstra        float64                    `json:"medianPerQuerySpeedupVsDijkstra"`
+	GeomeanPerQuerySpeedupVsDijkstra       float64                    `json:"geomeanPerQuerySpeedupVsDijkstra"`
+	MedianForwardShare                     float64                    `json:"medianForwardShare"`
+	P95ForwardShare                        float64                    `json:"p95ForwardShare"`
+	MedianDirectionSwitches                uint64                     `json:"medianDirectionSwitches"`
+	MedianChunks                           uint64                     `json:"medianChunks"`
+	MedianFirstUpperBoundFraction          float64                    `json:"medianFirstUpperBoundFraction"`
+	MedianTerminationTightness             float64                    `json:"medianTerminationTightness"`
+	MedianQueuePushes                      uint64                     `json:"medianQueuePushes"`
+	MedianQueuePops                        uint64                     `json:"medianQueuePops"`
+	MedianStalePops                        uint64                     `json:"medianStalePops"`
+	MedianPrunedAtPop                      uint64                     `json:"medianPrunedAtPop"`
+	MedianPrunedAtRelax                    uint64                     `json:"medianPrunedAtRelax"`
+	MedianBoundPruned                      uint64                     `json:"medianBoundPruned"`
+	MedianMeetingChecks                    uint64                     `json:"medianMeetingChecks"`
+	MedianPotentialEvaluations             uint64                     `json:"medianPotentialEvaluations"`
+	MedianUpperBoundUpdates                uint64                     `json:"medianUpperBoundUpdates"`
+	MedianOptimalityGap                    uint64                     `json:"medianOptimalityGap"`
+	DirectionByClass                       map[string]DirectionTotals `json:"directionByClass"`
+	RuntimeComparisons                     []RuntimeComparisonPoint   `json:"runtimeComparisons"`
 }
 
 type Report struct {
@@ -427,34 +449,62 @@ func chooseTarget(g *graph.Graph, pool []int, r *rand.Rand, source int, class st
 
 func summarize(samples []Sample, algs []search.Algorithm) []Summary {
 	out := make([]Summary, 0, len(algs))
+	byQuery := make(map[int]map[search.Algorithm]Sample)
+	for _, sample := range samples {
+		if _, ok := byQuery[sample.QueryIndex]; !ok {
+			byQuery[sample.QueryIndex] = make(map[search.Algorithm]Sample)
+		}
+		byQuery[sample.QueryIndex][sample.Stats.Algorithm] = sample
+	}
+
 	for _, alg := range algs {
 		durations := make([]int64, 0)
 		relaxed := make([]uint64, 0)
 		expanded := make([]uint64, 0)
-		s := Summary{Algorithm: alg}
-		for _, x := range samples {
-			if x.Stats.Algorithm != alg {
+		queuePushes := make([]uint64, 0)
+		queuePops := make([]uint64, 0)
+		stalePops := make([]uint64, 0)
+		prunedAtPop := make([]uint64, 0)
+		prunedAtRelax := make([]uint64, 0)
+		boundPruned := make([]uint64, 0)
+		summary := Summary{Algorithm: alg}
+		for _, sample := range samples {
+			if sample.Stats.Algorithm != alg {
 				continue
 			}
-			s.Runs++
-			if x.Stats.Reachable {
-				s.Reachable++
+			summary.Runs++
+			if sample.Stats.Reachable {
+				summary.Reachable++
 			}
-			if x.Correct {
-				s.Correct++
+			if sample.Correct {
+				summary.Correct++
 			}
-			durations = append(durations, x.Stats.DurationNS)
-			relaxed = append(relaxed, x.Stats.Relaxed)
-			expanded = append(expanded, x.Stats.Expanded)
+			durations = append(durations, sample.Stats.DurationNS)
+			relaxed = append(relaxed, sample.Stats.Relaxed)
+			expanded = append(expanded, sample.Stats.Expanded)
+			queuePushes = append(queuePushes, sample.Stats.QueuePushes)
+			queuePops = append(queuePops, sample.Stats.QueuePops)
+			stalePops = append(stalePops, sample.Stats.StalePops)
+			prunedAtPop = append(prunedAtPop, sample.Stats.PrunedAtPop)
+			prunedAtRelax = append(prunedAtRelax, sample.Stats.PrunedAtRelax)
+			boundPruned = append(boundPruned, sample.Stats.BoundPruned)
 		}
 		if len(durations) > 0 {
-			s.MedianNS = percentileInt64(durations, 0.5)
-			s.P95NS = percentileInt64(durations, 0.95)
-			s.MedianEdges = percentileUint64(relaxed, 0.5)
-			s.MedianExpanded = percentileUint64(expanded, 0.5)
+			summary.MedianNS = percentileInt64(durations, 0.5)
+			summary.P95NS = percentileInt64(durations, 0.95)
+			summary.P99NS = percentileInt64(durations, 0.99)
+			summary.MedianEdges = percentileUint64(relaxed, 0.5)
+			summary.MedianExpanded = percentileUint64(expanded, 0.5)
+			summary.MedianQueuePushes = percentileUint64(queuePushes, 0.5)
+			summary.MedianQueuePops = percentileUint64(queuePops, 0.5)
+			summary.MedianStalePops = percentileUint64(stalePops, 0.5)
+			summary.MedianPrunedAtPop = percentileUint64(prunedAtPop, 0.5)
+			summary.MedianPrunedAtRelax = percentileUint64(prunedAtRelax, 0.5)
+			summary.MedianBoundPruned = percentileUint64(boundPruned, 0.5)
 		}
-		out = append(out, s)
+		out = append(out, summary)
 	}
+
 	var base *Summary
 	for i := range out {
 		if out[i].Algorithm == search.Dijkstra {
@@ -462,14 +512,31 @@ func summarize(samples []Sample, algs []search.Algorithm) []Summary {
 			break
 		}
 	}
-	if base != nil {
-		for i := range out {
-			if out[i].MedianNS > 0 {
-				out[i].SpeedupVsDijkstra = float64(base.MedianNS) / float64(out[i].MedianNS)
+	if base == nil {
+		return out
+	}
+	for i := range out {
+		if out[i].MedianNS > 0 {
+			out[i].RatioOfMediansVsDijkstra = float64(base.MedianNS) / float64(out[i].MedianNS)
+		}
+		if base.MedianEdges > 0 {
+			out[i].RelaxedReductionPct = 100 * (1 - float64(out[i].MedianEdges)/float64(base.MedianEdges))
+		}
+		if base.MedianExpanded > 0 {
+			out[i].ExpandedReductionPct = 100 * (1 - float64(out[i].MedianExpanded)/float64(base.MedianExpanded))
+		}
+		perQuerySpeedups := make([]float64, 0, len(byQuery))
+		for _, group := range byQuery {
+			dijkstra, okD := group[search.Dijkstra]
+			candidate, okA := group[out[i].Algorithm]
+			if !okD || !okA || dijkstra.Stats.DurationNS <= 0 || candidate.Stats.DurationNS <= 0 {
+				continue
 			}
-			if base.MedianEdges > 0 {
-				out[i].RelaxedReductionPct = 100 * (1 - float64(out[i].MedianEdges)/float64(base.MedianEdges))
-			}
+			perQuerySpeedups = append(perQuerySpeedups, float64(dijkstra.Stats.DurationNS)/float64(candidate.Stats.DurationNS))
+		}
+		if len(perQuerySpeedups) > 0 {
+			out[i].MedianPerQuerySpeedupVsDijkstra = percentileFloat64(perQuerySpeedups, 0.5)
+			out[i].GeomeanPerQuerySpeedupVsDijkstra = geometricMean(perQuerySpeedups)
 		}
 	}
 	return out
@@ -500,36 +567,47 @@ func summarizeClasses(samples []Sample, algs []search.Algorithm) []ClassSummary 
 func summarizeAegis(samples []Sample) AegisSummary {
 	out := AegisSummary{DirectionByClass: map[string]DirectionTotals{}}
 	byQuery := map[int][]Sample{}
-	for _, s := range samples {
-		byQuery[s.QueryIndex] = append(byQuery[s.QueryIndex], s)
+	for _, sample := range samples {
+		byQuery[sample.QueryIndex] = append(byQuery[sample.QueryIndex], sample)
 	}
-	runtimeRegrets := []float64{}
+
+	relativeRuntimes := []float64{}
+	oracleRegrets := []float64{}
 	speedups := []float64{}
+	dijkstraDurations := []int64{}
+	aegisDurations := []int64{}
 	forwardShares := []float64{}
 	switches := []uint64{}
 	chunks := []uint64{}
 	upperFractions := []float64{}
 	tightness := []float64{}
+	queuePushes := []uint64{}
+	queuePops := []uint64{}
+	stalePops := []uint64{}
+	prunedAtPop := []uint64{}
+	prunedAtRelax := []uint64{}
 	pruned := []uint64{}
+	meetingChecks := []uint64{}
 	potentialEvals := []uint64{}
 	upperUpdates := []uint64{}
 	gaps := []uint64{}
+
 	indices := make([]int, 0, len(byQuery))
 	for i := range byQuery {
 		indices = append(indices, i)
 	}
 	sort.Ints(indices)
-	for _, qi := range indices {
-		group := byQuery[qi]
+	for _, queryIndex := range indices {
+		group := byQuery[queryIndex]
 		core := map[search.Algorithm]Sample{}
 		var aegis *Sample
 		for i := range group {
-			s := group[i]
-			switch s.Stats.Algorithm {
+			sample := group[i]
+			switch sample.Stats.Algorithm {
 			case search.Dijkstra, search.BiDijkstra, search.AStar:
-				core[s.Stats.Algorithm] = s
+				core[sample.Stats.Algorithm] = sample
 			case search.Aegis:
-				copy := s
+				copy := sample
 				aegis = &copy
 			}
 		}
@@ -546,11 +624,18 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		if fastest == "" {
 			continue
 		}
-		regret := float64(aegis.Stats.DurationNS) / float64(fastestNS)
-		runtimeRegrets = append(runtimeRegrets, regret)
-		out.Regrets = append(out.Regrets, RegretPoint{QueryIndex: qi, Class: aegis.QueryClass, Fastest: fastest, Regret: regret})
-		if d, ok := core[search.Dijkstra]; ok && d.Stats.DurationNS > 0 {
-			speedups = append(speedups, float64(d.Stats.DurationNS)/float64(aegis.Stats.DurationNS))
+		relativeRuntime := float64(aegis.Stats.DurationNS) / float64(fastestNS)
+		oracleRegret := math.Max(1, relativeRuntime)
+		relativeRuntimes = append(relativeRuntimes, relativeRuntime)
+		oracleRegrets = append(oracleRegrets, oracleRegret)
+		out.RuntimeComparisons = append(out.RuntimeComparisons, RuntimeComparisonPoint{
+			QueryIndex: queryIndex, Class: aegis.QueryClass, FastestBaseline: fastest,
+			RelativeRuntime: relativeRuntime, OracleRegret: oracleRegret,
+		})
+		if dijkstra, ok := core[search.Dijkstra]; ok && dijkstra.Stats.DurationNS > 0 {
+			speedups = append(speedups, float64(dijkstra.Stats.DurationNS)/float64(aegis.Stats.DurationNS))
+			dijkstraDurations = append(dijkstraDurations, dijkstra.Stats.DurationNS)
+			aegisDurations = append(aegisDurations, aegis.Stats.DurationNS)
 		}
 		totalDirections := aegis.Stats.ForwardExpanded + aegis.Stats.BackwardExpanded
 		if totalDirections > 0 {
@@ -558,13 +643,19 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		}
 		switches = append(switches, aegis.Stats.DirectionSwitches)
 		chunks = append(chunks, aegis.Stats.Chunks)
-		if aegis.Stats.Expanded > 0 && aegis.Stats.FirstUpperBoundExpanded > 0 {
+		if aegis.Stats.Expanded > 0 && aegis.Stats.UpperBoundUpdates > 0 {
 			upperFractions = append(upperFractions, float64(aegis.Stats.FirstUpperBoundExpanded)/float64(aegis.Stats.Expanded))
 		}
 		if aegis.Stats.Distance > 0 && aegis.Stats.TerminationLowerBound > 0 {
 			tightness = append(tightness, float64(aegis.Stats.TerminationLowerBound)/float64(aegis.Stats.Distance))
 		}
+		queuePushes = append(queuePushes, aegis.Stats.QueuePushes)
+		queuePops = append(queuePops, aegis.Stats.QueuePops)
+		stalePops = append(stalePops, aegis.Stats.StalePops)
+		prunedAtPop = append(prunedAtPop, aegis.Stats.PrunedAtPop)
+		prunedAtRelax = append(prunedAtRelax, aegis.Stats.PrunedAtRelax)
 		pruned = append(pruned, aegis.Stats.BoundPruned)
+		meetingChecks = append(meetingChecks, aegis.Stats.MeetingChecks)
 		potentialEvals = append(potentialEvals, aegis.Stats.PotentialEvaluations)
 		upperUpdates = append(upperUpdates, aegis.Stats.UpperBoundUpdates)
 		gaps = append(gaps, aegis.Stats.OptimalityGap)
@@ -574,13 +665,21 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		out.DirectionByClass[aegis.QueryClass] = totals
 		out.Comparisons++
 	}
-	if len(runtimeRegrets) > 0 {
-		out.MedianRuntimeRegret = percentileFloat64(runtimeRegrets, 0.5)
-		out.P95RuntimeRegret = percentileFloat64(runtimeRegrets, 0.95)
-		out.MaxRuntimeRegret = percentileFloat64(runtimeRegrets, 1)
+
+	if len(relativeRuntimes) > 0 {
+		out.MedianRelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 0.5)
+		out.P95RelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 0.95)
+		out.MaxRelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 1)
+		out.MedianOracleRegret = percentileFloat64(oracleRegrets, 0.5)
+		out.P95OracleRegret = percentileFloat64(oracleRegrets, 0.95)
+		out.MaxOracleRegret = percentileFloat64(oracleRegrets, 1)
 	}
 	if len(speedups) > 0 {
-		out.MedianSpeedupVsDijkstra = percentileFloat64(speedups, 0.5)
+		out.MedianPerQuerySpeedupVsDijkstra = percentileFloat64(speedups, 0.5)
+		out.GeomeanPerQuerySpeedupVsDijkstra = geometricMean(speedups)
+	}
+	if len(dijkstraDurations) > 0 && len(aegisDurations) > 0 {
+		out.RatioOfMediansVsDijkstra = float64(percentileInt64(dijkstraDurations, 0.5)) / float64(percentileInt64(aegisDurations, 0.5))
 	}
 	if len(forwardShares) > 0 {
 		out.MedianForwardShare = percentileFloat64(forwardShares, 0.5)
@@ -598,19 +697,33 @@ func summarizeAegis(samples []Sample) AegisSummary {
 	if len(tightness) > 0 {
 		out.MedianTerminationTightness = percentileFloat64(tightness, 0.5)
 	}
-	if len(pruned) > 0 {
+	if len(queuePushes) > 0 {
+		out.MedianQueuePushes = percentileUint64(queuePushes, 0.5)
+		out.MedianQueuePops = percentileUint64(queuePops, 0.5)
+		out.MedianStalePops = percentileUint64(stalePops, 0.5)
+		out.MedianPrunedAtPop = percentileUint64(prunedAtPop, 0.5)
+		out.MedianPrunedAtRelax = percentileUint64(prunedAtRelax, 0.5)
 		out.MedianBoundPruned = percentileUint64(pruned, 0.5)
-	}
-	if len(potentialEvals) > 0 {
+		out.MedianMeetingChecks = percentileUint64(meetingChecks, 0.5)
 		out.MedianPotentialEvaluations = percentileUint64(potentialEvals, 0.5)
-	}
-	if len(upperUpdates) > 0 {
 		out.MedianUpperBoundUpdates = percentileUint64(upperUpdates, 0.5)
-	}
-	if len(gaps) > 0 {
 		out.MedianOptimalityGap = percentileUint64(gaps, 0.5)
 	}
 	return out
+}
+
+func geometricMean(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, value := range values {
+		if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+			continue
+		}
+		sum += math.Log(value)
+	}
+	return math.Exp(sum / float64(len(values)))
 }
 
 func percentileInt64(values []int64, p float64) int64 {

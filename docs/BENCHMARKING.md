@@ -1,87 +1,110 @@
-# Benchmark methodology
+# Benchmarking ACBS
 
-## Fairness rules
+## Principles
 
-- No contraction hierarchy, landmarks, routing tables, or algorithm-specific preprocessing.
-- Every algorithm receives the same immutable graph and deterministic query list.
-- Import, largest strongly connected component selection, and nearest-node lookup are outside query timings.
-- Dijkstra correctness-reference runs are unmeasured.
-- Algorithm order rotates per query.
-- `aegis-race` is excluded from default comparisons because it uses two CPU cores.
+The benchmark harness treats Dijkstra as the correctness reference and measures each candidate on the same source/target pairs. Correctness reference runs are outside timed samples.
 
-## Measurements
+For each query and algorithm, the harness executes an odd number of repeated measurements and retains the median. Algorithm order rotates by query index to reduce systematic cache and thermal bias. Large graphs default to batch size one.
 
-```text
-queries × repeats × batch size
-```
+## Latency
 
-Each query/algorithm pair is measured an odd number of times. Each measurement may execute a batch, and the per-execution average is recorded. The median repeated measurement becomes the query sample.
+Reports contain:
 
-Automatic batch sizes:
+- `medianNs` (p50)
+- `p95Ns`
+- `p99Ns`
 
-| Graph size | Batch |
-|---:|---:|
-| < 1,000 | 64 |
-| < 10,000 | 16 |
-| < 100,000 | 4 |
-| ≥ 100,000 | 1 |
+These are percentiles across query-level median measurements, not percentiles of every inner repetition.
 
-## Query suites
+## Speedup definitions
 
-- `local`: nearest candidate among a deterministic sample
-- `random`: uniform pair
-- `regional`: farthest candidate among a deterministic sample
-- `mixed`: local, random, regional in rotation
-
-The default `strongly-connected` pair mode selects the largest strongly connected component before timing.
-
-## Raw ACBS metrics
-
-- wall-clock duration
-- expanded vertices
-- relaxed edges
-- queue pushes
-- forward expanded vertices
-- backward expanded vertices
-- direction switches
-- scheduler chunks
-- expansion count when the first complete upper bound was found
-- termination lower bound
-- forward/backward bound-progress efficiency
-- exact path distance and path length
-
-## Summary metrics
-
-- p50 and p95 latency
-- median expanded vertices and relaxed edges
-- speedup versus Dijkstra
-- relaxed-edge reduction versus Dijkstra
-- local/random/regional summaries
-- ACBS forward/backward balance
-- direction balance by distance class
-- runtime regret versus the fastest established baseline
-- first-upper-bound fraction
-- termination-bound tightness
+The following values are intentionally separate:
 
 ```text
-runtime regret = ACBS runtime / min(Dijkstra, bidirectional Dijkstra, A*) runtime
+ratio of medians = median(Dijkstra query times) / median(candidate query times)
+
+per-query speedup(q) = Dijkstra time(q) / candidate time(q)
+
+median per-query speedup = median(per-query speedup)
+
+geometric-mean speedup = exp(mean(log(per-query speedup)))
 ```
 
-Runtime regret is diagnostic, not an oracle used by ACBS.
+They can differ and must not share one label.
 
-## Visual report
+## Fastest-baseline comparison
 
-The generated HTML is self-contained and works offline. It includes Japanese, English, Simplified Chinese, Korean, and French.
+For each query:
+
+```text
+fastest baseline = min(Dijkstra, bidirectional Dijkstra, A*)
+
+relative runtime = ACBS time / fastest baseline time
+
+oracle regret = max(1, relative runtime)
+```
+
+Relative runtime can be below 1 when ACBS is faster than every baseline. Oracle regret cannot be below 1.
+
+## Work counters
+
+- `expanded`: states whose outgoing or incoming adjacency was processed.
+- `relaxed`: edges examined, including edges rejected by overflow or an incumbent bound.
+- `queuePushes`: priority-queue insertions.
+- `queuePops`: valid and stale heap removals.
+- `stalePops`: removed entries superseded by a better distance or already settled.
+- `prunedAtPop`: states rejected by `g+h >= U` after leaving the queue.
+- `prunedAtRelax`: candidate labels rejected by `g+h >= U` before queue insertion.
+- `boundPruned`: `prunedAtPop + prunedAtRelax`.
+- `meetingChecks`: finite forward/backward labels considered for an incumbent.
+- `upperBoundUpdates`: meeting checks that improved the incumbent.
+
+`relaxed` can remain unchanged while pruning improves runtime because relaxation-time pruning prevents queue insertion and later expansion. The split counters make that effect visible.
+
+## Query classes
+
+The mixed suite rotates through:
+
+- `local`: nearby candidate selected from a sampled pool.
+- `random`: uniform source/target selection inside the query pool.
+- `regional`: distant candidate selected from a sampled pool.
+
+The default pool is the largest strongly connected component.
+
+## Multi-seed matrix
+
+Run all `.aegis` graphs in a directory over five seeds:
 
 ```bash
-aegis benchmark \
-  --graph city.aegis \
-  --queries 300 \
-  --repeats 7 \
-  --output artifacts/city.json \
-  --html artifacts/city.html
+AEGIS_GRAPH_DIR=.data/regional-graphs \
+AEGIS_REPORT_DIR=artifacts/matrix \
+scripts/benchmark-matrix.sh
 ```
 
-## Reproducibility
+The script creates individual JSON/HTML reports and then runs:
 
-Record the commit, version, OS/architecture, Go version, CPU count, source-data SHA-256, graph dimensions, metric, profile, query suite, pair mode, seed, repeats, batch size, and algorithm list. OSM extracts with different hashes are different datasets.
+```bash
+bin/aegis aggregate \
+  --input-dir artifacts/matrix \
+  --output artifacts/matrix/benchmark-matrix.json \
+  --csv artifacts/matrix/benchmark-matrix.csv \
+  --html artifacts/matrix/benchmark-matrix.html
+```
+
+The aggregate report includes median and worst p95 values across seeds. No single seed is sufficient evidence of a stable advantage.
+
+## Reproducibility controls
+
+Recommended settings for large road graphs:
+
+```bash
+GOMAXPROCS=1
+--queries 50
+--repeats 3
+--batch 1
+--pair-mode strongly-connected
+--suite mixed
+--research
+```
+
+Increase query and repeat counts for publication-grade results. Record CPU model, governor, temperature policy, OS, Go version, graph checksum, graph import options, and raw JSON files.

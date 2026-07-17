@@ -352,4 +352,10 @@ func TestACBSPrunesAfterEarlyIncumbent(t *testing.T) {
 	if got.Stats.UpperBoundUpdates < 2 || got.Stats.BoundPruned == 0 {
 		t.Fatalf("expected early incumbent refinement and pruning: %+v", got.Stats)
 	}
+	if got.Stats.BoundPruned != got.Stats.PrunedAtPop+got.Stats.PrunedAtRelax {
+		t.Fatalf("pruning counters do not add up: %+v", got.Stats)
+	}
+	if got.Stats.QueuePops == 0 || got.Stats.QueuePushes == 0 || got.Stats.MeetingChecks == 0 {
+		t.Fatalf("missing queue or meeting counters: %+v", got.Stats)
+	}
 }

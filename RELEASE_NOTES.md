@@ -1,34 +1,33 @@
-# Aegis ACBS v0.2.0-experimental
+# Aegis ACBS v0.3.0-experimental
 
-ACBS v2は、v1の単一双方向探索を維持しながら、道路グラフで重かったpotential計算とchunk配分を作り直した研究版です。
+v0.3.0 freezes the v0.2 ACBS search policy and focuses on measurement integrity and reproducibility. The algorithm still runs one coupled bidirectional search; this release does not replace it with a portfolio selector.
 
 ## Main changes
 
-- 緯度経度をグラフ読み込み時に3次元単位ベクトルへ前計算
-- 大円距離以下で三角不等式を満たす弦距離potential
-- 頂点数ではなく確認辺数を基準にしたadaptive edge budget
-- 上界発見後の`g+h >= U`安全枝刈り
-- `upperBound / lowerBound / optimalityGap`証明値
-- `aegis-static`と`aegis-no-prune`アブレーション
-- `benchmark --research`
-- 日英中韓仏の視覚レポートに枝刈りKPIを追加
+- Separate `queuePushes`, `queuePops`, and `stalePops`.
+- Separate upper-bound pruning at node pop from pruning during edge relaxation.
+- Record meeting checks independently from successful upper-bound updates.
+- Add p99 latency to JSON, CLI, HTML, and the browser UI.
+- Replace ambiguous speedup output with:
+  - ratio of medians versus Dijkstra,
+  - median per-query speedup,
+  - geometric-mean per-query speedup.
+- Replace the incorrectly named sub-1.0 “runtime regret” with relative runtime to the fastest baseline.
+- Add true oracle regret, clamped to at least 1.0.
+- Add `aegis aggregate` for multi-seed, multi-graph JSON/CSV/HTML reports.
+- Add reproducibility scripts for five seeds, distance/time metrics, and regional Japanese road graphs.
+- Add Tokyo, Yokohama, Osaka, and Nagoya extraction definitions using Geofabrik PBF data.
 
 ## Validation
 
-- 4頂点以下の全有向グラフ総当たり
-- 250種類×40クエリのランダム有向時間道路グラフ
-- chord vs great-circle 10,000組
-- Dijkstra距離・到達可能性・経路連続性一致
-- gap 0証明値
-- `go test`, `go vet`, race detector
-
-## Builds
-
-- Linux amd64
-- Linux arm64
-- Windows amd64
-- macOS amd64
+- Exhaustive directed graphs through four vertices.
+- Random directed distance and time road graphs.
+- Dijkstra distance, reachability, and path-continuity differential checks.
+- Pruning counter identity: `boundPruned = prunedAtPop + prunedAtRelax`.
+- Multi-seed report aggregation tests.
+- Standalone benchmark and matrix HTML generation tests.
+- `go test ./...`, `go vet ./...`, and race detector validation.
 
 ## Research status
 
-研究上の新規性は未確定です。MM、NBS、DVCBS、BAE*、2025年のtight termination methodとの比較が完了するまで`experimental`を維持します。
+Research novelty remains unconfirmed. MM, NBS, DVCBS, BAE*, lower-bound propagation, and newer exact bidirectional termination criteria must still be implemented or independently compared before making a novelty or state-of-the-art claim.

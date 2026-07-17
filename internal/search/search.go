@@ -51,6 +51,8 @@ type Stats struct {
 	Expanded                uint64    `json:"expanded"`
 	Relaxed                 uint64    `json:"relaxed"`
 	QueuePushes             uint64    `json:"queuePushes"`
+	QueuePops               uint64    `json:"queuePops"`
+	StalePops               uint64    `json:"stalePops"`
 	Distance                uint64    `json:"distance"`
 	Reachable               bool      `json:"reachable"`
 	PathNodes               int       `json:"pathNodes"`
@@ -62,7 +64,10 @@ type Stats struct {
 	TerminationLowerBound   uint64    `json:"terminationLowerBound,omitempty"`
 	ForwardEfficiency       float64   `json:"forwardEfficiency,omitempty"`
 	BackwardEfficiency      float64   `json:"backwardEfficiency,omitempty"`
+	MeetingChecks           uint64    `json:"meetingChecks,omitempty"`
 	UpperBoundUpdates       uint64    `json:"upperBoundUpdates,omitempty"`
+	PrunedAtPop             uint64    `json:"prunedAtPop,omitempty"`
+	PrunedAtRelax           uint64    `json:"prunedAtRelax,omitempty"`
 	BoundPruned             uint64    `json:"boundPruned,omitempty"`
 	PotentialEvaluations    uint64    `json:"potentialEvaluations,omitempty"`
 	UpperBound              uint64    `json:"upperBound,omitempty"`

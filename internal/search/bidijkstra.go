@@ -43,7 +43,9 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 		}
 		if minF <= minB {
 			cur := pop(qf)
+			stats.QueuePops++
 			if cur.distance != df[cur.node] || settledF[cur.node] {
+				stats.StalePops++
 				continue
 			}
 			settledF[cur.node] = true
@@ -72,7 +74,9 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 			}
 		} else {
 			cur := pop(qb)
+			stats.QueuePops++
 			if cur.distance != db[cur.node] || settledB[cur.node] {
+				stats.StalePops++
 				continue
 			}
 			settledB[cur.node] = true

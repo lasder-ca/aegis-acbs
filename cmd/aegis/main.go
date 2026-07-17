@@ -37,6 +37,8 @@ func main() {
 		err = route(os.Args[2:])
 	case "benchmark":
 		err = benchmark(os.Args[2:])
+	case "aggregate":
+		err = aggregate(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -62,6 +64,7 @@ Usage:
   aegis import-dimacs --graph USA-road-d.NY.gr --coords USA-road-d.NY.co --output ny.aegis
   aegis route --graph city.aegis --source ID|lat,lon --target ID|lat,lon [--algorithm aegis]
   aegis benchmark --graph city.aegis --queries 100 --repeats 9 --output report.json --html report.html
+  aegis aggregate --input-dir artifacts/benchmarks --output matrix.json --csv matrix.csv --html matrix.html
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -238,12 +241,19 @@ func benchmark(args []string) error {
 		}
 	}
 	for _, s := range report.Summary {
-		fmt.Printf("%-12s median=%8.3fms p95=%8.3fms relaxed=%d correct=%d/%d\n", s.Algorithm, float64(s.MedianNS)/1e6, float64(s.P95NS)/1e6, s.MedianEdges, s.Correct, s.Runs)
+		fmt.Printf("%-14s median=%8.3fms p95=%8.3fms p99=%8.3fms relaxed=%d expanded=%d correct=%d/%d\n",
+			s.Algorithm, float64(s.MedianNS)/1e6, float64(s.P95NS)/1e6, float64(s.P99NS)/1e6,
+			s.MedianEdges, s.MedianExpanded, s.Correct, s.Runs)
 	}
 	if report.Aegis.Comparisons > 0 {
-		fmt.Printf("acbs         speedup-vs-dijkstra=%.3fx runtime-regret(p50/p95)=%.3fx/%.3fx forward-share=%.1f%% switches=%d chunks=%d\n",
-			report.Aegis.MedianSpeedupVsDijkstra, report.Aegis.MedianRuntimeRegret, report.Aegis.P95RuntimeRegret,
-			100*report.Aegis.MedianForwardShare, report.Aegis.MedianDirectionSwitches, report.Aegis.MedianChunks)
+		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx relative-runtime-to-fastest(p50/p95)=%.3fx/%.3fx oracle-regret(p50/p95)=%.3fx/%.3fx\n",
+			report.Aegis.RatioOfMediansVsDijkstra, report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
+			report.Aegis.MedianRelativeRuntimeToFastestBaseline, report.Aegis.P95RelativeRuntimeToFastestBaseline,
+			report.Aegis.MedianOracleRegret, report.Aegis.P95OracleRegret)
+		fmt.Printf("acbs-work      forward-share=%.1f%% switches=%d chunks=%d pushes=%d pops=%d stale=%d pruned(pop/relax)=%d/%d meetings=%d\n",
+			100*report.Aegis.MedianForwardShare, report.Aegis.MedianDirectionSwitches, report.Aegis.MedianChunks,
+			report.Aegis.MedianQueuePushes, report.Aegis.MedianQueuePops, report.Aegis.MedianStalePops,
+			report.Aegis.MedianPrunedAtPop, report.Aegis.MedianPrunedAtRelax, report.Aegis.MedianMeetingChecks)
 	}
 	if !report.AllCorrect {
 		return errors.New("correctness mismatch detected")
@@ -251,6 +261,54 @@ func benchmark(args []string) error {
 	fmt.Println("report:", *out)
 	if *htmlOut != "" {
 		fmt.Println("visual report:", *htmlOut)
+	}
+	return nil
+}
+
+func aggregate(args []string) error {
+	fs := flag.NewFlagSet("aggregate", flag.ContinueOnError)
+	inputDir := fs.String("input-dir", "", "directory containing benchmark JSON reports")
+	output := fs.String("output", "benchmark-matrix.json", "aggregate JSON output")
+	csvOut := fs.String("csv", "benchmark-matrix.csv", "aggregate CSV output; empty disables")
+	htmlOut := fs.String("html", "benchmark-matrix.html", "self-contained aggregate HTML output; empty disables")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *inputDir == "" {
+		return errors.New("--input-dir is required")
+	}
+	report, err := bench.AggregateDirectory(*inputDir)
+	if err != nil {
+		return err
+	}
+	if err := bench.WriteMatrixJSON(*output, report); err != nil {
+		return err
+	}
+	if *csvOut != "" {
+		if err := bench.WriteMatrixCSV(*csvOut, report); err != nil {
+			return err
+		}
+	}
+	if *htmlOut != "" {
+		if err := bench.WriteMatrixHTML(*htmlOut, report); err != nil {
+			return err
+		}
+	}
+	for _, group := range report.Groups {
+		fmt.Printf("%-20s %-8s runs=%d p50=%8.3fms median-p95=%8.3fms speedup=%.3fx worst-p95-regret=%.3fx correct=%v\n",
+			group.GraphName, group.Metric, group.Runs, float64(group.MedianOfAegisMediansNS)/1e6,
+			float64(group.MedianOfAegisP95NS)/1e6, group.GeomeanPerQuerySpeedupVsDijkstra,
+			group.WorstP95OracleRegret, group.AllCorrect)
+	}
+	fmt.Println("matrix report:", *output)
+	if *csvOut != "" {
+		fmt.Println("matrix csv:", *csvOut)
+	}
+	if *htmlOut != "" {
+		fmt.Println("matrix visual report:", *htmlOut)
+	}
+	if !report.AllCorrect {
+		return errors.New("one or more benchmark reports contain correctness mismatches")
 	}
 	return nil
 }
