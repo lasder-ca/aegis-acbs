@@ -156,3 +156,19 @@ scripts/soak.sh city.aegis artifacts/soak
 ```
 
 Report throughput together with p95/p99 and peak RSS. A throughput increase accompanied by exploding p99 or RSS is not considered a successful scaling result.
+
+## Regret diagnosis
+
+Use `aegis diagnose` after a benchmark containing `dijkstra`, `bidijkstra`, `astar`, and `aegis` samples:
+
+```bash
+aegis diagnose \
+  --input benchmark.json \
+  --ratio-threshold 1.25 \
+  --penalty-floor 1ms \
+  --output regret.json \
+  --csv regret.csv \
+  --html regret.html
+```
+
+The ratio threshold alone is insufficient on very short queries. By default a query is marked meaningful only when ACBS is at least 1.25x slower than the fastest classical baseline **and** loses at least 1 ms in absolute time.

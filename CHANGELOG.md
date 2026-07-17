@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.0-experimental
+
+- Added query-level regret diagnosis in JSON, CSV, and HTML.
+- Added absolute latency penalty and configurable meaningful-regret thresholds.
+- Added endpoint/query features and correlation analysis.
+- Added meaningful slowdown and absolute-penalty metrics to benchmark summaries.
+- Kept the v0.7 scheduler unchanged after rejecting a tail-guard prototype that regressed synthetic time-road performance.
+
+
 ## 0.7.0-experimental
 
 - Remove inactive incumbent-pruning evaluation from the default ACBS hot path.

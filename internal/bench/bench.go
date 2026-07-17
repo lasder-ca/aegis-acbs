@@ -38,14 +38,17 @@ type Query struct {
 }
 
 type Sample struct {
-	QueryIndex         int          `json:"queryIndex"`
-	QueryClass         string       `json:"queryClass"`
-	StraightLineMeters float64      `json:"straightLineMeters"`
-	SourceID           int64        `json:"sourceId"`
-	TargetID           int64        `json:"targetId"`
-	Stats              search.Stats `json:"stats"`
-	Correct            bool         `json:"correct"`
-	Error              string       `json:"error,omitempty"`
+	QueryIndex          int          `json:"queryIndex"`
+	QueryClass          string       `json:"queryClass"`
+	StraightLineMeters  float64      `json:"straightLineMeters"`
+	DistanceRatio       float64      `json:"distanceRatio,omitempty"`
+	SourceDegree        int          `json:"sourceDegree,omitempty"`
+	TargetReverseDegree int          `json:"targetReverseDegree,omitempty"`
+	SourceID            int64        `json:"sourceId"`
+	TargetID            int64        `json:"targetId"`
+	Stats               search.Stats `json:"stats"`
+	Correct             bool         `json:"correct"`
+	Error               string       `json:"error,omitempty"`
 }
 
 type Summary struct {
@@ -110,6 +113,10 @@ type AegisSummary struct {
 	MedianClassicalOracleRegret     float64 `json:"medianClassicalOracleRegret"`
 	P95ClassicalOracleRegret        float64 `json:"p95ClassicalOracleRegret"`
 	MaxClassicalOracleRegret        float64 `json:"maxClassicalOracleRegret"`
+	MedianAbsolutePenaltyNS         int64   `json:"medianAbsolutePenaltyNs"`
+	P95AbsolutePenaltyNS            int64   `json:"p95AbsolutePenaltyNs"`
+	MaxAbsolutePenaltyNS            int64   `json:"maxAbsolutePenaltyNs"`
+	MeaningfulSlowdowns             int     `json:"meaningfulSlowdowns"`
 	// Deprecated v0.3-v0.6 aliases retained for report consumers.
 	MedianRelativeRuntimeToFastestBaseline float64                    `json:"medianRelativeRuntimeToFastestBaseline,omitempty"`
 	P95RelativeRuntimeToFastestBaseline    float64                    `json:"p95RelativeRuntimeToFastestBaseline,omitempty"`
@@ -166,6 +173,7 @@ type Report struct {
 	Metric            graph.Metric   `json:"metric"`
 	Profile           string         `json:"profile"`
 	HeuristicStrength float64        `json:"heuristicStrength"`
+	DiameterMeters    float64        `json:"diameterMeters,omitempty"`
 	Config            Config         `json:"config"`
 	Queries           []Query        `json:"queryPairs"`
 	Samples           []Sample       `json:"samples"`
@@ -255,6 +263,7 @@ func Run(ctx context.Context, g *graph.Graph, cfg Config) (Report, error) {
 		Metric:            g.Metric,
 		Profile:           g.Profile,
 		HeuristicStrength: g.HeuristicStrength,
+		DiameterMeters:    g.DiameterMeters,
 		Config:            cfg,
 		Queries:           queries,
 		AllCorrect:        true,
@@ -286,14 +295,21 @@ func Run(ctx context.Context, g *graph.Graph, cfg Config) (Report, error) {
 			if !correct {
 				report.AllCorrect = false
 			}
+			distanceRatio := 0.0
+			if g.DiameterMeters > 0 {
+				distanceRatio = q.StraightLineMeters / g.DiameterMeters
+			}
 			s := Sample{
-				QueryIndex:         qi,
-				QueryClass:         q.Class,
-				StraightLineMeters: q.StraightLineMeters,
-				SourceID:           g.Nodes[q.Source].ID,
-				TargetID:           g.Nodes[q.Target].ID,
-				Stats:              r.Stats,
-				Correct:            correct,
+				QueryIndex:          qi,
+				QueryClass:          q.Class,
+				StraightLineMeters:  q.StraightLineMeters,
+				DistanceRatio:       distanceRatio,
+				SourceDegree:        g.OutDegree(q.Source),
+				TargetReverseDegree: g.InDegree(q.Target),
+				SourceID:            g.Nodes[q.Source].ID,
+				TargetID:            g.Nodes[q.Target].ID,
+				Stats:               r.Stats,
+				Correct:             correct,
 			}
 			if runErr != nil {
 				s.Error = runErr.Error()
@@ -710,6 +726,7 @@ func summarizeAegis(samples []Sample) AegisSummary {
 
 	relativeRuntimes := []float64{}
 	oracleRegrets := []float64{}
+	absolutePenalties := []int64{}
 	speedups := []float64{}
 	dijkstraDurations := []int64{}
 	aegisDurations := []int64{}
@@ -767,6 +784,14 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		oracleRegret := math.Max(1, relativeRuntime)
 		relativeRuntimes = append(relativeRuntimes, relativeRuntime)
 		oracleRegrets = append(oracleRegrets, oracleRegret)
+		penalty := aegis.Stats.DurationNS - fastestNS
+		if penalty < 0 {
+			penalty = 0
+		}
+		absolutePenalties = append(absolutePenalties, penalty)
+		if relativeRuntime >= 1.25 && penalty >= int64(time.Millisecond) {
+			out.MeaningfulSlowdowns++
+		}
 		out.RuntimeComparisons = append(out.RuntimeComparisons, RuntimeComparisonPoint{
 			QueryIndex: queryIndex, Class: aegis.QueryClass,
 			FastestClassicalBaseline: fastest, RuntimeVsFastestClassical: relativeRuntime, ClassicalOracleRegret: oracleRegret,
@@ -821,6 +846,11 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		out.MedianOracleRegret = out.MedianClassicalOracleRegret
 		out.P95OracleRegret = out.P95ClassicalOracleRegret
 		out.MaxOracleRegret = out.MaxClassicalOracleRegret
+	}
+	if len(absolutePenalties) > 0 {
+		out.MedianAbsolutePenaltyNS = percentileInt64(absolutePenalties, 0.5)
+		out.P95AbsolutePenaltyNS = percentileInt64(absolutePenalties, 0.95)
+		out.MaxAbsolutePenaltyNS = percentileInt64(absolutePenalties, 1)
 	}
 	if len(speedups) > 0 {
 		out.MedianPerQuerySpeedupVsDijkstra = percentileFloat64(speedups, 0.5)

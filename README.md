@@ -224,6 +224,9 @@ Concurrent workspace and long-run behavior can be tested in one process:
 
 ```bash
 aegis stress --graph city.aegis --queries 10000 --workers 8 --verify-every 100
+
+# Separate ratio noise from material tail slowdowns
+aegis diagnose --input benchmark.json --output regret.json --csv regret.csv --html regret.html
 scripts/stress-matrix.sh city.aegis
 scripts/soak.sh city.aegis
 ```

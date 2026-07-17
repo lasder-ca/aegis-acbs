@@ -1,24 +1,23 @@
-# Aegis ACBS v0.7.0-experimental
+# Aegis ACBS v0.8.0-experimental
 
-v0.7.0 is a production-path cleanup and validation release. It does not change the exact coupled-bound termination rule, balanced chord potential, radix queues, or CSR graph representation.
+This release adds query-level regret diagnosis without changing the v0.7 ACBS search policy.
 
-## Main changes
+## Added
 
-- Disable the inactive incumbent-bound pruning pass in the default `aegis` path.
-- Add `aegis-prune` as an explicit experimental variant.
-- Make `aegis-static` differ from `aegis` only in direction scheduling.
-- Keep `aegis-no-prune` as a compatibility alias for older command lines.
-- Move the weak linear-projection variant behind `--experimental`.
-- Change `--research` to include only the scheduler ablation.
-- Rename CLI wording to `runtime-vs-fastest-classical` and `classical-oracle-regret`.
-- Label ACBS work counters as medians in CLI output.
-- Add `aegis stress` for concurrent in-process validation with sampled Dijkstra checking.
-- Add worker-scaling and repeated soak scripts.
+- `aegis diagnose` for benchmark JSON reports.
+- Absolute slowdown (`algorithm - fastest classical`) alongside runtime ratios.
+- A default meaningful-slowdown rule: ratio >= 1.25 and absolute penalty >= 1 ms.
+- Top queries ranked independently by absolute penalty and ratio.
+- Query features for diagnosis: distance ratio, endpoint degrees, forward share, switch rate, first-upper-bound fraction, stale-pop rate, and efficiency imbalance.
+- Pearson correlations between absolute slowdown and recorded query/search features.
+- Self-contained diagnostic JSON, CSV, and HTML reports.
+- Source/target degree, distance ratio, and graph diameter in new benchmark reports.
+- Standard benchmark output now reports meaningful slowdown count and p50/p95/max absolute penalty.
+
+## Deliberately not changed
+
+The production `aegis` scheduler remains `edge-efficiency-v3`. A conservative time-metric tail guard was prototyped, but it made synthetic time-road p50 and p95 slower, so it was rejected rather than shipped.
 
 ## Interpretation
 
-The incumbent-pruning proof remains valid, but the feature did not activate on the Tokyo v0.6 runs. Removing it from the production path simplifies the algorithm claim and prevents unnecessary potential-bound evaluations. This is not a claim that pruning can never help on another domain; the exact experiment remains available as `aegis-prune`.
-
-## Research status
-
-Academic novelty remains unconfirmed. Publication claims still require same-codebase comparisons with MM/MMe, NBS, DVCBS, BAE*, and MEET-style termination methods, plus independent multi-city reproduction.
+A high ratio on a microsecond query is not necessarily a practical regression. The diagnostic report separates ratio-only noise from slowdowns with material absolute latency.

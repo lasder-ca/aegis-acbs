@@ -41,6 +41,8 @@ func main() {
 		err = aggregate(os.Args[2:])
 	case "stress":
 		err = stress(os.Args[2:])
+	case "diagnose":
+		err = diagnose(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -68,6 +70,7 @@ Usage:
   aegis benchmark --graph city.aegis --queries 100 --repeats 9 --output report.json --html report.html
   aegis aggregate --input-dir artifacts/benchmarks --output matrix.json --csv matrix.csv --html matrix.html
   aegis stress --graph city.aegis --queries 10000 --workers 8 --verify-every 100
+  aegis diagnose --input benchmark.json --output regret.json --csv regret.csv --html regret.html
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -256,10 +259,11 @@ func benchmark(args []string) error {
 			s.MedianEdges, s.MedianExpanded, s.MedianAllocBytes, s.Correct, s.Runs)
 	}
 	if report.Aegis.Comparisons > 0 {
-		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx runtime-vs-fastest-classical(p50/p95)=%.3fx/%.3fx classical-oracle-regret(p50/p95)=%.3fx/%.3fx\n",
+		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx runtime-vs-fastest-classical(p50/p95)=%.3fx/%.3fx classical-oracle-regret(p50/p95)=%.3fx/%.3fx meaningful=%d penalty(p50/p95/max)=%.3fms/%.3fms/%.3fms\n",
 			report.Aegis.RatioOfMediansVsDijkstra, report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
 			report.Aegis.MedianRuntimeVsFastestClassical, report.Aegis.P95RuntimeVsFastestClassical,
-			report.Aegis.MedianClassicalOracleRegret, report.Aegis.P95ClassicalOracleRegret)
+			report.Aegis.MedianClassicalOracleRegret, report.Aegis.P95ClassicalOracleRegret, report.Aegis.MeaningfulSlowdowns,
+			float64(report.Aegis.MedianAbsolutePenaltyNS)/1e6, float64(report.Aegis.P95AbsolutePenaltyNS)/1e6, float64(report.Aegis.MaxAbsolutePenaltyNS)/1e6)
 		fmt.Printf("acbs-work      median-forward-share=%.1f%% median-switches=%d median-chunks=%d median-pushes=%d median-pops=%d median-stale=%d median-pruned(pop/relax)=%d/%d median-connections=%d median-finite-meetings=%d median-upper-updates=%d\n",
 			100*report.Aegis.MedianForwardShare, report.Aegis.MedianDirectionSwitches, report.Aegis.MedianChunks,
 			report.Aegis.MedianQueuePushes, report.Aegis.MedianQueuePops, report.Aegis.MedianStalePops,
@@ -321,6 +325,67 @@ func stress(args []string) error {
 	}
 	if !report.AllVerifiedCorrect {
 		return errors.New("stress verification mismatch or query error detected")
+	}
+	return nil
+}
+
+func diagnose(args []string) error {
+	fs := flag.NewFlagSet("diagnose", flag.ContinueOnError)
+	input := fs.String("input", "", "benchmark JSON report")
+	algorithm := fs.String("algorithm", "aegis", "algorithm to diagnose")
+	ratio := fs.Float64("ratio-threshold", 1.25, "minimum runtime ratio for a meaningful slowdown")
+	penalty := fs.Duration("penalty-floor", time.Millisecond, "minimum absolute slowdown for a meaningful slowdown")
+	top := fs.Int("top", 25, "number of top queries to include")
+	output := fs.String("output", "regret.json", "diagnostic JSON output")
+	csvOut := fs.String("csv", "regret.csv", "diagnostic CSV output; empty disables")
+	htmlOut := fs.String("html", "regret.html", "self-contained diagnostic HTML output; empty disables")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *input == "" {
+		return errors.New("--input is required")
+	}
+	report, err := bench.LoadReport(*input)
+	if err != nil {
+		return err
+	}
+	diagnostic, err := bench.AnalyzeRegret(report, bench.RegretConfig{
+		Algorithm: search.Algorithm(*algorithm), RatioThreshold: *ratio, PenaltyFloorNS: penalty.Nanoseconds(), Top: *top,
+	})
+	if err != nil {
+		return err
+	}
+	if err := bench.WriteRegretJSON(*output, diagnostic); err != nil {
+		return err
+	}
+	if *csvOut != "" {
+		if err := bench.WriteRegretCSV(*csvOut, diagnostic); err != nil {
+			return err
+		}
+	}
+	if *htmlOut != "" {
+		if err := bench.WriteRegretHTML(*htmlOut, diagnostic); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("diagnosis      algorithm=%s queries=%d meaningful=%d ratio(p50/p95/max)=%.3fx/%.3fx/%.3fx penalty(p50/p95/max)=%.3fms/%.3fms/%.3fms\n",
+		diagnostic.Config.Algorithm, diagnostic.Queries, diagnostic.MeaningfulQueries,
+		diagnostic.P50RuntimeRatio, diagnostic.P95RuntimeRatio, diagnostic.MaxRuntimeRatio,
+		float64(diagnostic.P50PenaltyNS)/1e6, float64(diagnostic.P95PenaltyNS)/1e6, float64(diagnostic.MaxPenaltyNS)/1e6)
+	for _, row := range diagnostic.TopByPenalty {
+		if !row.Meaningful {
+			continue
+		}
+		fmt.Printf("regret         query=%d class=%s baseline=%s ratio=%.3fx penalty=%.3fms distance=%.2fkm expanded=%d forward=%.1f%% switches=%d/%d\n",
+			row.QueryIndex, row.Class, row.FastestClassical, row.RuntimeRatio, float64(row.AbsolutePenaltyNS)/1e6,
+			row.StraightLineMeters/1000, row.Expanded, 100*row.ForwardShare, row.DirectionSwitches, row.Chunks)
+	}
+	fmt.Println("diagnostic report:", *output)
+	if *csvOut != "" {
+		fmt.Println("diagnostic csv:", *csvOut)
+	}
+	if *htmlOut != "" {
+		fmt.Println("diagnostic visual report:", *htmlOut)
 	}
 	return nil
 }
