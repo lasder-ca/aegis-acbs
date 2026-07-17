@@ -1,7 +1,6 @@
 package search
 
 import (
-	"container/heap"
 	"context"
 	"math"
 
@@ -18,8 +17,7 @@ func dijkstra(ctx context.Context, g *graph.Graph, source, target int, useHeuris
 
 	w.touch(source)
 	dist[source] = 0
-	q := &minHeap{}
-	heap.Init(q)
+	q := &w.q
 	push(q, item{node: source, distance: 0, priority: heuristic(g, source, target, useHeuristic)})
 	stats := Stats{Algorithm: Dijkstra, QueuePushes: 1}
 	if useHeuristic {

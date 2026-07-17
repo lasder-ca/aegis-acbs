@@ -1,23 +1,63 @@
 package search
 
-import "container/heap"
-
 type item struct {
 	node     int
 	priority uint64
 	distance uint64
 }
+
 type minHeap []item
 
 func (h minHeap) Len() int { return len(h) }
-func (h minHeap) Less(i, j int) bool {
-	if h[i].priority == h[j].priority {
-		return h[i].distance < h[j].distance
+
+func lessItem(a, b item) bool {
+	if a.priority == b.priority {
+		return a.distance < b.distance
 	}
-	return h[i].priority < h[j].priority
+	return a.priority < b.priority
 }
-func (h minHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *minHeap) Push(x any)   { *h = append(*h, x.(item)) }
-func (h *minHeap) Pop() any     { old := *h; n := len(old); x := old[n-1]; *h = old[:n-1]; return x }
-func push(h *minHeap, x item)   { heap.Push(h, x) }
-func pop(h *minHeap) item       { return heap.Pop(h).(item) }
+
+// push inserts an item without interface boxing or container/heap overhead.
+// The backing slice is owned by a pooled search workspace and reused between
+// queries, so steady-state routing performs no priority-queue allocations.
+func push(h *minHeap, x item) {
+	*h = append(*h, x)
+	i := len(*h) - 1
+	for i > 0 {
+		parent := (i - 1) / 2
+		if !lessItem((*h)[i], (*h)[parent]) {
+			break
+		}
+		(*h)[i], (*h)[parent] = (*h)[parent], (*h)[i]
+		i = parent
+	}
+}
+
+func pop(h *minHeap) item {
+	n := len(*h)
+	root := (*h)[0]
+	last := (*h)[n-1]
+	(*h)[n-1] = item{}
+	*h = (*h)[:n-1]
+	if n == 1 {
+		return root
+	}
+	(*h)[0] = last
+	for i := 0; ; {
+		left := i*2 + 1
+		if left >= len(*h) {
+			break
+		}
+		right := left + 1
+		smallest := left
+		if right < len(*h) && lessItem((*h)[right], (*h)[left]) {
+			smallest = right
+		}
+		if !lessItem((*h)[smallest], (*h)[i]) {
+			break
+		}
+		(*h)[i], (*h)[smallest] = (*h)[smallest], (*h)[i]
+		i = smallest
+	}
+	return root
+}

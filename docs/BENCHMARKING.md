@@ -105,3 +105,19 @@ AEGIS_MEASURE_MEMORY=1
 ```
 
 Record CPU model, governor, temperature policy, OS, Go version, graph checksum, import options, raw JSON, and command line. For p99 claims, increase the query count beyond 1,000 and report confidence intervals.
+
+## Steady-state allocation regression
+
+v0.5 adds a search-core benchmark that warms the pooled workspace before measuring ACBS. Run:
+
+```bash
+go test ./internal/search -run '^$' -bench '^BenchmarkACBSLargeGrid$' -benchmem
+```
+
+For a direct v0.4/v0.5 comparison using identical temporary benchmark code and isolated Git worktrees:
+
+```bash
+scripts/compare-allocations.sh
+```
+
+The generated grid fixture isolates queue and path allocation behavior. It does not replace the real OSM-derived city matrix for algorithm-performance claims. Queue backing arrays are retained after warm-up, so lower `B/op` and `allocs/op` should be evaluated together with ACBS-only peak RSS.

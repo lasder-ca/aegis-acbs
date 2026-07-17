@@ -136,3 +136,7 @@ aegis benchmark --graph city.aegis --research
 ## Status
 
 ACBS v2は検証可能な研究プロトタイプである。構成要素の多くは既存概念であり、組み合わせとedge-work schedulerの学術的新規性は未確定である。
+
+## v0.5 implementation note: queue ownership
+
+The ACBS mathematical algorithm is unchanged. The forward and backward priority queues are now owned by the pooled bidirectional workspace. A specialized binary heap mutates these slices directly, avoiding `container/heap` interface boxing and repeated backing-array growth. Queue state is reset to length zero when the workspace is released; capacity is deliberately retained for reuse. Returned paths are exact-sized and remain owned by the caller.

@@ -261,18 +261,68 @@ func reconstruct(prev []int, source, target int) []int {
 	if target < 0 || target >= len(prev) || prev[target] < 0 {
 		return nil
 	}
-	path := make([]int, 0, 32)
-	for v := target; ; v = prev[v] {
-		path = append(path, v)
+	length := 1
+	for v := target; v != source; {
+		v = prev[v]
+		if v < 0 || v >= len(prev) {
+			return nil
+		}
+		length++
+	}
+	path := make([]int, length)
+	for i, v := length-1, target; i >= 0; i-- {
+		path[i] = v
 		if v == source {
 			break
 		}
-		if v < 0 || prev[v] < 0 {
+		v = prev[v]
+	}
+	return path
+}
+
+// reconstructBidirectional materializes a path with one exact-sized allocation.
+// The forward parent array points toward source, while the backward parent array
+// points toward target.
+func reconstructBidirectional(pf, pb []int, source, meet, target int) []int {
+	if meet < 0 || meet >= len(pf) || meet >= len(pb) {
+		return nil
+	}
+	leftLen := 1
+	for v := meet; v != source; {
+		v = pf[v]
+		if v < 0 || v >= len(pf) {
 			return nil
 		}
+		leftLen++
 	}
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
+	rightLen := 0
+	reachedTarget := meet == target
+	for v := pb[meet]; v >= 0; v = pb[v] {
+		if v >= len(pb) {
+			return nil
+		}
+		rightLen++
+		if v == target {
+			reachedTarget = true
+			break
+		}
+	}
+	if !reachedTarget {
+		return nil
+	}
+
+	path := make([]int, leftLen+rightLen)
+	for i, v := leftLen-1, meet; i >= 0; i-- {
+		path[i] = v
+		if v == source {
+			break
+		}
+		v = pf[v]
+	}
+	pos := leftLen
+	for v := pb[meet]; pos < len(path); v = pb[v] {
+		path[pos] = v
+		pos++
 	}
 	return path
 }

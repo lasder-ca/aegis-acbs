@@ -10,6 +10,7 @@ type singleWorkspace struct {
 	dist    []uint64
 	prev    []int
 	touched []int
+	q       minHeap
 }
 
 var singleWorkspacePool = sync.Pool{
@@ -30,6 +31,7 @@ func acquireSingleWorkspace(n int) *singleWorkspace {
 		w.prev = w.prev[:n]
 	}
 	w.touched = w.touched[:0]
+	w.q = w.q[:0]
 	return w
 }
 
@@ -45,6 +47,7 @@ func releaseSingleWorkspace(w *singleWorkspace) {
 		w.prev[v] = -1
 	}
 	w.touched = w.touched[:0]
+	w.q = w.q[:0]
 	singleWorkspacePool.Put(w)
 }
 
@@ -57,6 +60,7 @@ type biWorkspace struct {
 	phiKnown            []bool
 	touchedF, touchedB  []int
 	touchedPhi          []int
+	qf, qb              minHeap
 }
 
 var biWorkspacePool = sync.Pool{
@@ -95,6 +99,8 @@ func acquireBiWorkspace(n int) *biWorkspace {
 	w.touchedF = w.touchedF[:0]
 	w.touchedB = w.touchedB[:0]
 	w.touchedPhi = w.touchedPhi[:0]
+	w.qf = w.qf[:0]
+	w.qb = w.qb[:0]
 	return w
 }
 
@@ -148,5 +154,7 @@ func releaseBiWorkspace(w *biWorkspace) {
 	w.touchedF = w.touchedF[:0]
 	w.touchedB = w.touchedB[:0]
 	w.touchedPhi = w.touchedPhi[:0]
+	w.qf = w.qf[:0]
+	w.qb = w.qb[:0]
 	biWorkspacePool.Put(w)
 }

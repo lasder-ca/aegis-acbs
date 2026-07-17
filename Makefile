@@ -1,4 +1,4 @@
-.PHONY: test race vet build reproduce research compare matrix japan-matrix release clean
+.PHONY: test race vet build reproduce research compare allocations matrix japan-matrix release clean
 
 test:
 	go test ./...
@@ -20,7 +20,10 @@ research: reproduce
 	bin/aegis benchmark --graph artifacts/hatfield-uk.aegis --queries 100 --repeats 5 --batch 8 --research --seed 1010 --output artifacts/research.json --html artifacts/research.html
 
 compare: reproduce
-	OLD_TAG=v0.2.0-experimental scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
+	OLD_TAG=v0.4.0-experimental scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
+
+allocations:
+	scripts/compare-allocations.sh
 
 matrix: build
 	scripts/benchmark-matrix.sh

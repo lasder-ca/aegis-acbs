@@ -11,7 +11,7 @@ go test ./...
 go vet ./...
 go test -race ./internal/search ./internal/graph ./internal/bench ./internal/server
 scripts/reproduce.sh
-OLD_TAG=v0.3.0-experimental QUERIES=100 REPEATS=5 BATCH=8 scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
+OLD_TAG=v0.4.0-experimental QUERIES=100 REPEATS=5 BATCH=8 scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
 
 build_one() {
   local os="$1" arch="$2" ext=""
@@ -40,8 +40,13 @@ git archive --format=zip --prefix="aegis-acbs-$VERSION/" -o "$DIST/aegis-acbs-$V
 cp artifacts/hatfield-uk-benchmark.json artifacts/hatfield-uk-benchmark.html "$DIST/"
 cp artifacts/matrix/benchmark-matrix.json artifacts/matrix/benchmark-matrix.csv artifacts/matrix/benchmark-matrix.html "$DIST/"
 cp artifacts/tag-comparison/summary.md "$DIST/tag-comparison.md"
-cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.3.0.html"
-cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.4.0.html"
+cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.4.0.html"
+cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.5.0.html"
+
+OLD_TAG=v0.4.0-experimental BENCHTIME=20x COUNT=3 scripts/compare-allocations.sh artifacts/allocation-comparison
+cp artifacts/allocation-comparison/summary.json artifacts/allocation-comparison/summary.md "$DIST/"
+cp artifacts/allocation-comparison/old.txt "$DIST/allocation-v0.4.0.txt"
+cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.5.0.txt"
 
 python3 - <<PY
 import json, os, platform, subprocess, datetime
@@ -51,7 +56,7 @@ info={
   'name':'Aegis ACBS','version':version,'commit':commit,
   'builtAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
   'builder':{'platform':platform.platform(),'python':platform.python_version()},
-  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, and v0.3/v0.4 tag comparison'
+  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a v0.4/v0.5 tag comparison, and an isolated allocation regression comparison'
 }
 open(os.path.join(dist,'BUILD-INFO.json'),'w').write(json.dumps(info,indent=2)+'\n')
 sbom={'bomFormat':'CycloneDX','specVersion':'1.5','serialNumber':'urn:uuid:aegis-acbs-'+version,'version':1,'metadata':{'component':{'type':'application','name':'aegis-acbs','version':version}},'components':[]}

@@ -1,7 +1,6 @@
 package search
 
 import (
-	"container/heap"
 	"context"
 
 	"github.com/lasder-ca/aegis-acbs/internal/graph"
@@ -21,9 +20,7 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 	w.touchForward(source)
 	w.touchBackward(target)
 	df[source], db[target] = 0, 0
-	qf, qb := &minHeap{}, &minHeap{}
-	heap.Init(qf)
-	heap.Init(qb)
+	qf, qb := &w.qf, &w.qb
 	push(qf, item{node: source, distance: 0, priority: 0})
 	push(qb, item{node: target, distance: 0, priority: 0})
 	best, meet := inf, -1
@@ -108,18 +105,8 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 	if best == inf || meet < 0 {
 		return Result{Stats: stats}, nil
 	}
-	left := reconstruct(pf, source, meet)
-	if len(left) == 0 {
-		return Result{Stats: stats}, nil
-	}
-	path := append([]int{}, left...)
-	for v := pb[meet]; v >= 0; v = pb[v] {
-		path = append(path, v)
-		if v == target {
-			break
-		}
-	}
-	if path[len(path)-1] != target {
+	path := reconstructBidirectional(pf, pb, source, meet, target)
+	if len(path) == 0 {
 		return Result{Stats: stats}, nil
 	}
 	stats.Distance = best

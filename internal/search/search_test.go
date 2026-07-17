@@ -121,7 +121,7 @@ func TestLegacyPortfolioUsesBiDijkstraWithoutCoordinates(t *testing.T) {
 	}
 }
 
-func gridGraph(t *testing.T, rows, cols int, coordinates bool) *graph.Graph {
+func gridGraph(t testing.TB, rows, cols int, coordinates bool) *graph.Graph {
 	t.Helper()
 	n := rows * cols
 	g := graph.New("grid", "", "car", graph.MetricDistance)

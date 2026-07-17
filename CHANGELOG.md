@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0-experimental
+
+- Replace `container/heap` with a specialized allocation-free binary heap.
+- Reuse priority-queue backing arrays through single-frontier and bidirectional workspace pools.
+- Reconstruct paths with one exact-sized allocation.
+- Add heap-ordering and steady-state allocation regression tests.
+- Add a large-grid allocation benchmark and reproducible v0.4/v0.5 comparison script.
+- Keep ACBS scheduling, potential, pruning, and exact termination semantics unchanged.
+
 ## 0.4.0-experimental
 
 - Interleave algorithms within every repetition using a deterministic per-query shuffle to reduce cache, thermal, and fixed-order bias.
