@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Aegis fixture builder" copyright="OpenStreetMap and contributors" attribution="https://www.openstreetmap.org/copyright" license="https://opendatacommons.org/licenses/odbl/1-0/">
+  <bounds minlat="51.7600" minlon="-0.2420" maxlat="51.7700" maxlon="-0.2280"/>
+  <node id="1" lat="51.7662309" lon="-0.2301727"/>
+  <node id="2" lat="51.7661960" lon="-0.2300577"/>
+  <node id="3" lat="51.7659603" lon="-0.2298860"/>
+  <node id="4" lat="51.7657707" lon="-0.2297466"/>
+  <node id="5" lat="51.7664234" lon="-0.2301680"/>
+  <node id="6" lat="51.7664226" lon="-0.2306706"/>
+  <node id="7" lat="51.7664334" lon="-0.2308543"/>
+  <node id="8" lat="51.7664375" lon="-0.2311210"/>
+  <node id="9" lat="51.7691296" lon="-0.2334775"/>
+  <node id="10" lat="51.7686826" lon="-0.2337580"/>
+  <node id="11" lat="51.7681708" lon="-0.2340633"/>
+  <node id="12" lat="51.7675723" lon="-0.2343948"/>
+  <node id="13" lat="51.7669243" lon="-0.2347828"/>
+  <node id="14" lat="51.7663492" lon="-0.2351212"/>
+  <node id="15" lat="51.7659009" lon="-0.2354077"/>
+  <node id="16" lat="51.7653887" lon="-0.2358026"/>
+  <node id="17" lat="51.7637769" lon="-0.2372349"/>
+  <node id="18" lat="51.7633111" lon="-0.2376388"/>
+  <node id="19" lat="51.7629584" lon="-0.2379885"/>
+  <node id="20" lat="51.7625030" lon="-0.2384847"/>
+  <node id="21" lat="51.7621347" lon="-0.2389377"/>
+  <node id="22" lat="51.7615062" lon="-0.2398273"/>
+  <node id="23" lat="51.7612128" lon="-0.2402177"/>
+  <node id="24" lat="51.7607865" lon="-0.2407377"/>
+  <node id="25" lat="51.7604105" lon="-0.2411607"/>
+  <node id="26" lat="51.7600489" lon="-0.2415577"/>
+  <node id="27" lat="51.7668176" lon="-0.2324186"/>
+  <node id="28" lat="51.7668087" lon="-0.2319463"/>
+  <node id="29" lat="51.7668043" lon="-0.2317105"/>
+  <node id="30" lat="51.7650116" lon="-0.2336202"/>
+  <node id="31" lat="51.7650043" lon="-0.2327466"/>
+  <node id="32" lat="51.7649997" lon="-0.2322040"/>
+  <node id="33" lat="51.7649983" lon="-0.2320323"/>
+  <node id="34" lat="51.7658981" lon="-0.2288767"/>
+  <node id="35" lat="51.7657629" lon="-0.2287146"/>
+  <node id="36" lat="51.7656790" lon="-0.2286138"/>
+  <node id="37" lat="51.7669238" lon="-0.2311096"/>
+  <node id="38" lat="51.7669105" lon="-0.2308092"/>
+  <node id="39" lat="51.7668707" lon="-0.2306376"/>
+  <node id="40" lat="51.7666582" lon="-0.2302728"/>
+  <node id="41" lat="51.7665387" lon="-0.2301655"/>
+  <node id="42" lat="51.7662526" lon="-0.2301717"/>
+  <node id="43" lat="51.7659279" lon="-0.2301870"/>
+  <node id="44" lat="51.7646643" lon="-0.2327467"/>
+  <node id="45" lat="51.7633699" lon="-0.2315644"/>
+  <node id="46" lat="51.7640906" lon="-0.2321029"/>
+  <node id="47" lat="51.7641756" lon="-0.2320686"/>
+  <node id="48" lat="51.7643910" lon="-0.2315055"/>
+  <node id="49" lat="51.7646500" lon="-0.2309262"/>
+  <node id="50" lat="51.7647281" lon="-0.2307811"/>
+  <node id="51" lat="51.7649288" lon="-0.2303361"/>
+  <node id="52" lat="51.7649459" lon="-0.2300945"/>
+  <node id="53" lat="51.7648821" lon="-0.2299657"/>
+  <node id="54" lat="51.7642712" lon="-0.2292448"/>
+  <node id="55" lat="51.7662466" lon="-0.2305947"/>
+  <node id="56" lat="51.7673886" lon="-0.2308092"/>
+  <node id="57" lat="51.7672160" lon="-0.2311096"/>
+  <node id="58" lat="51.7660075" lon="-0.2311311"/>
+  <node id="59" lat="51.7659013" lon="-0.2312169"/>
+  <node id="60" lat="51.7663395" lon="-0.2335558"/>
+  <node id="61" lat="51.7663325" lon="-0.2326806"/>
+  <node id="62" lat="51.7663325" lon="-0.2321978"/>
+  <node id="63" lat="51.7654239" lon="-0.2280517"/>
+  <node id="64" lat="51.7657214" lon="-0.2283607"/>
+  <node id="65" lat="51.7658573" lon="-0.2285071"/>
+  <node id="66" lat="51.7659764" lon="-0.2286354"/>
+  <node id="67" lat="51.7692701" lon="-0.2328603"/>
+  <node id="68" lat="51.7691484" lon="-0.2328600"/>
+  <node id="69" lat="51.7691024" lon="-0.2328278"/>
+  <node id="70" lat="51.7690483" lon="-0.2327900"/>
+  <node id="71" lat="51.7689451" lon="-0.2326617"/>
+  <node id="72" lat="51.7686565" lon="-0.2323780"/>
+  <node id="73" lat="51.7679128" lon="-0.2314590"/>
+  <node id="74" lat="51.7678360" lon="-0.2313581"/>
+  <node id="75" lat="51.7669066" lon="-0.2299037"/>
+  <node id="76" lat="51.7668609" lon="-0.2297982"/>
+  <node id="77" lat="51.7663875" lon="-0.2287055"/>
+  <node id="78" lat="51.7661409" lon="-0.2281364"/>
+  <node id="79" lat="51.7660029" lon="-0.2278200"/>
+  <node id="80" lat="51.7658277" lon="-0.2273908"/>
+  <node id="81" lat="51.7654452" lon="-0.2267900"/>
+  <node id="82" lat="51.7653822" lon="-0.2267100"/>
+  <node id="83" lat="51.7651269" lon="-0.2263993"/>
+  <node id="84" lat="51.7648902" lon="-0.2260856"/>
+  <node id="85" lat="51.7666512" lon="-0.2335175"/>
+  <node id="86" lat="51.7666450" lon="-0.2345643"/>
+  <node id="87" lat="51.7667910" lon="-0.2349720"/>
+  <node id="88" lat="51.7654365" lon="-0.2360664"/>
+  <node id="89" lat="51.7656630" lon="-0.2310043"/>
+  <node id="90" lat="51.7655162" lon="-0.2310024"/>
+  <node id="91" lat="51.7657287" lon="-0.2335773"/>
+  <node id="92" lat="51.7656710" lon="-0.2329121"/>
+  <node id="93" lat="51.7657685" lon="-0.2308736"/>
+  <node id="94" lat="51.7657552" lon="-0.2302299"/>
+  <node id="95" lat="51.7664002" lon="-0.2284888"/>
+  <node id="96" lat="51.7662902" lon="-0.2287087"/>
+  <node id="97" lat="51.7639045" lon="-0.2280397"/>
+  <node id="98" lat="51.7641260" lon="-0.2283029"/>
+  <node id="99" lat="51.7641966" lon="-0.2283868"/>
+  <node id="100" lat="51.7645058" lon="-0.2287542"/>
+  <node id="101" lat="51.7648155" lon="-0.2291326"/>
+  <node id="102" lat="51.7648871" lon="-0.2291570"/>
+  <node id="103" lat="51.7649702" lon="-0.2291338"/>
+  <node id="104" lat="51.7653718" lon="-0.2335455"/>
+  <node id="105" lat="51.7653963" lon="-0.2340748"/>
+  <node id="106" lat="51.7652436" lon="-0.2343645"/>
+  <node id="107" lat="51.7649049" lon="-0.2349653"/>
+  <node id="108" lat="51.7644069" lon="-0.2359846"/>
+  <node id="109" lat="51.7643241" lon="-0.2342786"/>
+  <node id="110" lat="51.7641616" lon="-0.2341566"/>
+  <node id="111" lat="51.7640156" lon="-0.2339635"/>
+  <node id="112" lat="51.7653473" lon="-0.2297437"/>
+  <node id="113" lat="51.7653888" lon="-0.2296338"/>
+  <node id="114" lat="51.7672160" lon="-0.2319465"/>
+  <node id="115" lat="51.7654494" lon="-0.2345898"/>
+  <node id="116" lat="51.7656224" lon="-0.2346931"/>
+  <node id="117" lat="51.7685132" lon="-0.2327218"/>
+  <node id="118" lat="51.7683678" lon="-0.2329377"/>
+  <node id="119" lat="51.7681451" lon="-0.2331666"/>
+  <node id="120" lat="51.7680360" lon="-0.2332649"/>
+  <node id="121" lat="51.7677977" lon="-0.2333867"/>
+  <node id="122" lat="51.7675214" lon="-0.2334485"/>
+  <node id="123" lat="51.7670895" lon="-0.2334531"/>
+  <node id="124" lat="51.7647725" lon="-0.2335773"/>
+  <node id="125" lat="51.7644936" lon="-0.2334485"/>
+  <node id="126" lat="51.7642678" lon="-0.2331848"/>
+  <node id="127" lat="51.7642174" lon="-0.2331200"/>
+  <node id="128" lat="51.7640168" lon="-0.2329698"/>
+  <node id="129" lat="51.7638537" lon="-0.2328073"/>
+  <node id="130" lat="51.7634178" lon="-0.2323866"/>
+  <node id="131" lat="51.7631398" lon="-0.2321115"/>
+  <node id="132" lat="51.7630874" lon="-0.2320614"/>
+  <node id="133" lat="51.7627317" lon="-0.2317216"/>
+  <node id="134" lat="51.7626254" lon="-0.2316239"/>
+  <node id="135" lat="51.7622322" lon="-0.2312626"/>
+  <node id="136" lat="51.7622019" lon="-0.2312414"/>
+  <node id="137" lat="51.7619874" lon="-0.2310911"/>
+  <node id="138" lat="51.7651181" lon="-0.2294785"/>
+  <node id="139" lat="51.7652089" lon="-0.2295753"/>
+  <node id="140" lat="51.7653748" lon="-0.2301426"/>
+  <node id="141" lat="51.7651480" lon="-0.2306151"/>
+  <node id="142" lat="51.7651690" lon="-0.2293735"/>
+  <node id="143" lat="51.7655080" lon="-0.2297882"/>
+  <node id="144" lat="51.7656315" lon="-0.2300248"/>
+  <node id="145" lat="51.7671097" lon="-0.2329550"/>
+  <node id="146" lat="51.7669504" lon="-0.2328263"/>
+  <node id="147" lat="51.7667114" lon="-0.2328263"/>
+  <node id="148" lat="51.7662328" lon="-0.2288234"/>
+  <node id="149" lat="51.7661855" lon="-0.2289178"/>
+  <node id="150" lat="51.7655773" lon="-0.2301331"/>
+  <node id="151" lat="51.7644034" lon="-0.2323818"/>
+  <node id="152" lat="51.7659279" lon="-0.2326975"/>
+  <node id="153" lat="51.7652240" lon="-0.2322254"/>
+  <node id="154" lat="51.7662934" lon="-0.2284883"/>
+  <way id="158788812">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <tag k="highway" v="footway"/>
+  </way>
+  <way id="158788810">
+    <nd ref="5"/>
+    <nd ref="6"/>
+    <nd ref="7"/>
+    <nd ref="8"/>
+    <tag k="highway" v="footway"/>
+  </way>
+  <way id="156255508">
+    <nd ref="9"/>
+    <nd ref="10"/>
+    <nd ref="11"/>
+    <nd ref="12"/>
+    <nd ref="13"/>
+    <nd ref="14"/>
+    <nd ref="15"/>
+    <nd ref="16"/>
+    <nd ref="17"/>
+    <nd ref="18"/>
+    <nd ref="19"/>
+    <nd ref="20"/>
+    <nd ref="21"/>
+    <nd ref="22"/>
+    <nd ref="23"/>
+    <nd ref="24"/>
+    <nd ref="25"/>
+    <nd ref="26"/>
+    <tag k="highway" v="motorway"/>
+    <tag k="name" v="Hatfield Tunnel"/>
+    <tag k="maxspeed" v="national"/>
+    <tag k="oneway" v="yes"/>
+  </way>
+  <way id="54932035">
+    <nd ref="27"/>
+    <nd ref="28"/>
+    <nd ref="29"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Jasmine Gardens"/>
+  </way>
+  <way id="16946553">
+    <nd ref="30"/>
+    <nd ref="31"/>
+    <nd ref="32"/>
+    <nd ref="33"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Oak Tree Close"/>
+  </way>
+  <way id="52083876">
+    <nd ref="34"/>
+    <nd ref="35"/>
+    <nd ref="36"/>
+    <tag k="highway" v="service"/>
+  </way>
+  <way id="16946600">
+    <nd ref="37"/>
+    <nd ref="38"/>
+    <nd ref="39"/>
+    <nd ref="40"/>
+    <nd ref="41"/>
+    <nd ref="5"/>
+    <nd ref="42"/>
+    <nd ref="1"/>
+    <nd ref="43"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Harmony Close"/>
+  </way>
+  <way id="16946559">
+    <nd ref="31"/>
+    <nd ref="44"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Oak Tree Close"/>
+  </way>
+  <way id="16945846">
+    <nd ref="45"/>
+    <nd ref="46"/>
+    <nd ref="47"/>
+    <nd ref="48"/>
+    <nd ref="49"/>
+    <nd ref="50"/>
+    <nd ref="51"/>
+    <nd ref="52"/>
+    <nd ref="53"/>
+    <nd ref="54"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Stockbreach Close"/>
+  </way>
+  <way id="54932037">
+    <nd ref="42"/>
+    <nd ref="55"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Harmony Close"/>
+  </way>
+  <way id="16946584">
+    <nd ref="56"/>
+    <nd ref="57"/>
+    <nd ref="37"/>
+    <nd ref="8"/>
+    <nd ref="58"/>
+    <nd ref="59"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="The Minims"/>
+  </way>
+  <way id="8361329">
+    <nd ref="60"/>
+    <nd ref="61"/>
+    <nd ref="62"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="The Paddock"/>
+  </way>
+  <way id="16945926">
+    <nd ref="63"/>
+    <nd ref="64"/>
+    <nd ref="65"/>
+    <nd ref="66"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Wellfield Close"/>
+  </way>
+  <way id="3084923">
+    <nd ref="67"/>
+    <nd ref="68"/>
+    <nd ref="69"/>
+    <nd ref="70"/>
+    <nd ref="71"/>
+    <nd ref="72"/>
+    <nd ref="73"/>
+    <nd ref="74"/>
+    <nd ref="56"/>
+    <nd ref="75"/>
+    <nd ref="76"/>
+    <nd ref="77"/>
+    <nd ref="78"/>
+    <nd ref="79"/>
+    <nd ref="80"/>
+    <nd ref="81"/>
+    <nd ref="82"/>
+    <nd ref="83"/>
+    <nd ref="84"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="Wellfield Road"/>
+  </way>
+  <way id="8361331">
+    <nd ref="85"/>
+    <nd ref="86"/>
+    <nd ref="87"/>
+    <nd ref="88"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Walsingham Close"/>
+  </way>
+  <way id="54932038">
+    <nd ref="89"/>
+    <nd ref="90"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Middlefield"/>
+  </way>
+  <way id="16946620">
+    <nd ref="91"/>
+    <nd ref="92"/>
+    <nd ref="89"/>
+    <nd ref="93"/>
+    <nd ref="94"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Middlefield"/>
+  </way>
+  <way id="157868709">
+    <nd ref="95"/>
+    <nd ref="96"/>
+    <tag k="highway" v="cycleway"/>
+    <tag k="name" v="Alban Way"/>
+  </way>
+  <way id="52083877">
+    <nd ref="35"/>
+    <nd ref="65"/>
+    <tag k="highway" v="service"/>
+  </way>
+  <way id="53588764">
+    <nd ref="97"/>
+    <nd ref="98"/>
+    <nd ref="99"/>
+    <nd ref="100"/>
+    <nd ref="101"/>
+    <nd ref="102"/>
+    <nd ref="103"/>
+    <nd ref="63"/>
+    <tag k="highway" v="footway"/>
+  </way>
+  <way id="49161822">
+    <nd ref="104"/>
+    <nd ref="105"/>
+    <nd ref="106"/>
+    <nd ref="107"/>
+    <nd ref="108"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Worcester Road"/>
+  </way>
+  <way id="49161823">
+    <nd ref="107"/>
+    <nd ref="109"/>
+    <nd ref="110"/>
+    <nd ref="111"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Ely Close"/>
+  </way>
+  <way id="53588782">
+    <nd ref="112"/>
+    <nd ref="113"/>
+    <tag k="highway" v="footway"/>
+    <tag k="bicycle" v="no"/>
+  </way>
+  <way id="54932044">
+    <nd ref="114"/>
+    <nd ref="28"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Jasmine Gardens"/>
+  </way>
+  <way id="49161817">
+    <nd ref="106"/>
+    <nd ref="115"/>
+    <nd ref="116"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Malvern Close"/>
+  </way>
+  <way id="4673618">
+    <nd ref="72"/>
+    <nd ref="117"/>
+    <nd ref="118"/>
+    <nd ref="119"/>
+    <nd ref="120"/>
+    <nd ref="121"/>
+    <nd ref="122"/>
+    <nd ref="123"/>
+    <nd ref="85"/>
+    <nd ref="60"/>
+    <nd ref="91"/>
+    <nd ref="104"/>
+    <nd ref="30"/>
+    <nd ref="124"/>
+    <nd ref="125"/>
+    <nd ref="126"/>
+    <nd ref="127"/>
+    <nd ref="128"/>
+    <nd ref="129"/>
+    <nd ref="130"/>
+    <nd ref="131"/>
+    <nd ref="132"/>
+    <nd ref="133"/>
+    <nd ref="134"/>
+    <nd ref="135"/>
+    <nd ref="136"/>
+    <nd ref="137"/>
+    <tag k="highway" v="tertiary"/>
+    <tag k="name" v="Lemsford Road"/>
+  </way>
+  <way id="53588748">
+    <nd ref="138"/>
+    <nd ref="139"/>
+    <nd ref="112"/>
+    <nd ref="140"/>
+    <nd ref="141"/>
+    <nd ref="51"/>
+    <tag k="highway" v="footway"/>
+    <tag k="bicycle" v="no"/>
+  </way>
+  <way id="50772651">
+    <nd ref="53"/>
+    <nd ref="138"/>
+    <nd ref="142"/>
+    <nd ref="103"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Town Fields"/>
+  </way>
+  <way id="158788824">
+    <nd ref="143"/>
+    <nd ref="144"/>
+    <tag k="highway" v="footway"/>
+  </way>
+  <way id="54932042">
+    <nd ref="145"/>
+    <nd ref="146"/>
+    <nd ref="147"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Jasmine Gardens"/>
+  </way>
+  <way id="53638215">
+    <nd ref="142"/>
+    <nd ref="113"/>
+    <nd ref="143"/>
+    <tag k="highway" v="service"/>
+  </way>
+  <way id="157868710">
+    <nd ref="96"/>
+    <nd ref="148"/>
+    <nd ref="149"/>
+    <nd ref="4"/>
+    <nd ref="144"/>
+    <nd ref="150"/>
+    <nd ref="151"/>
+    <tag k="highway" v="cycleway"/>
+    <tag k="name" v="Alban Way"/>
+  </way>
+  <way id="54932036">
+    <nd ref="61"/>
+    <nd ref="152"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="The Paddock"/>
+  </way>
+  <way id="54932039">
+    <nd ref="32"/>
+    <nd ref="153"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Oak Tree Close"/>
+  </way>
+  <way id="55071941">
+    <nd ref="149"/>
+    <nd ref="154"/>
+    <tag k="highway" v="footway"/>
+    <tag k="foot" v="yes"/>
+  </way>
+  <way id="157868707">
+    <nd ref="151"/>
+    <nd ref="150"/>
+    <nd ref="144"/>
+    <nd ref="4"/>
+    <nd ref="149"/>
+    <nd ref="148"/>
+    <tag k="highway" v="cycleway"/>
+    <tag k="name" v="Alban Way"/>
+  </way>
+</osm>

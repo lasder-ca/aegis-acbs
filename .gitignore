@@ -1,0 +1,10 @@
+/dist/
+*.aegis
+*.prof
+*.out
+.DS_Store
+/bin/
+/.data/
+/artifacts/*.aegis
+
+/artifacts/
