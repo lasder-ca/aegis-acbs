@@ -376,9 +376,14 @@ func signedDifference(a, b uint64) int64 {
 }
 
 func updateACBSBest(node int, df, db []uint64, best, bestReduced *uint64, meet *int, stats *Stats, phiS, phiT int64) {
+	stats.ConnectionChecks++
 	if df[node] == inf || db[node] == inf || df[node] > inf-db[node] {
 		return
 	}
+	stats.FiniteMeetings++
+	// MeetingChecks is retained for JSON compatibility with v0.3 reports.
+	// From v0.4 onward it means a finite forward/backward overlap, while
+	// ConnectionChecks records every attempted connection test.
 	stats.MeetingChecks++
 	candidate := df[node] + db[node]
 	if candidate >= *best {

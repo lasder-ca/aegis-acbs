@@ -358,4 +358,7 @@ func TestACBSPrunesAfterEarlyIncumbent(t *testing.T) {
 	if got.Stats.QueuePops == 0 || got.Stats.QueuePushes == 0 || got.Stats.MeetingChecks == 0 {
 		t.Fatalf("missing queue or meeting counters: %+v", got.Stats)
 	}
+	if got.Stats.ConnectionChecks < got.Stats.FiniteMeetings || got.Stats.FiniteMeetings != got.Stats.MeetingChecks || got.Stats.FiniteMeetings < got.Stats.UpperBoundUpdates {
+		t.Fatalf("invalid connection accounting: %+v", got.Stats)
+	}
 }

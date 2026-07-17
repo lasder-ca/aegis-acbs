@@ -30,6 +30,9 @@ type MatrixRow struct {
 	Repeats                                int     `json:"repeats"`
 	AllCorrect                             bool    `json:"allCorrect"`
 	AegisMedianNS                          int64   `json:"aegisMedianNs"`
+	AegisMeanNS                            int64   `json:"aegisMeanNs"`
+	AegisMinNS                             int64   `json:"aegisMinNs"`
+	AegisMaxNS                             int64   `json:"aegisMaxNs"`
 	AegisP95NS                             int64   `json:"aegisP95Ns"`
 	AegisP99NS                             int64   `json:"aegisP99Ns"`
 	AegisMedianRelaxed                     uint64  `json:"aegisMedianRelaxed"`
@@ -39,6 +42,9 @@ type MatrixRow struct {
 	AegisMedianStalePops                   uint64  `json:"aegisMedianStalePops"`
 	AegisMedianPrunedAtPop                 uint64  `json:"aegisMedianPrunedAtPop"`
 	AegisMedianPrunedAtRelax               uint64  `json:"aegisMedianPrunedAtRelax"`
+	AegisMedianAllocBytes                  uint64  `json:"aegisMedianAllocBytes"`
+	AegisMedianAllocObjects                uint64  `json:"aegisMedianAllocObjects"`
+	PeakRSSBytes                           uint64  `json:"peakRssBytes"`
 	RatioOfMediansVsDijkstra               float64 `json:"ratioOfMediansVsDijkstra"`
 	MedianPerQuerySpeedupVsDijkstra        float64 `json:"medianPerQuerySpeedupVsDijkstra"`
 	GeomeanPerQuerySpeedupVsDijkstra       float64 `json:"geomeanPerQuerySpeedupVsDijkstra"`
@@ -161,10 +167,14 @@ func matrixRow(path string, report Report) (MatrixRow, bool) {
 		Metric: string(report.Metric), Profile: report.Profile, Nodes: report.Nodes, Edges: report.Edges,
 		Seed: report.Config.Seed, Queries: report.Config.Queries, Repeats: report.Config.Repeats, AllCorrect: report.AllCorrect,
 		AegisMedianNS: aegis.MedianNS, AegisP95NS: aegis.P95NS, AegisP99NS: aegis.P99NS,
+		AegisMeanNS: aegis.MeanNS, AegisMinNS: aegis.MinNS, AegisMaxNS: aegis.MaxNS,
 		AegisMedianRelaxed: aegis.MedianEdges, AegisMedianExpanded: aegis.MedianExpanded,
 		AegisMedianQueuePushes: aegis.MedianQueuePushes, AegisMedianQueuePops: aegis.MedianQueuePops,
 		AegisMedianStalePops: aegis.MedianStalePops, AegisMedianPrunedAtPop: aegis.MedianPrunedAtPop,
 		AegisMedianPrunedAtRelax:               aegis.MedianPrunedAtRelax,
+		AegisMedianAllocBytes:                  aegis.MedianAllocBytes,
+		AegisMedianAllocObjects:                aegis.MedianAllocObjects,
+		PeakRSSBytes:                           report.Memory.PeakRSSBytes,
 		RatioOfMediansVsDijkstra:               report.Aegis.RatioOfMediansVsDijkstra,
 		MedianPerQuerySpeedupVsDijkstra:        report.Aegis.MedianPerQuerySpeedupVsDijkstra,
 		GeomeanPerQuerySpeedupVsDijkstra:       report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
@@ -244,15 +254,16 @@ func WriteMatrixCSV(path string, report MatrixReport) error {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	header := []string{"graph", "metric", "profile", "seed", "queries", "repeats", "correct", "acbs_p50_ms", "acbs_p95_ms", "acbs_p99_ms", "relaxed", "expanded", "queue_pushes", "queue_pops", "stale_pops", "pruned_at_pop", "pruned_at_relax", "ratio_of_medians_vs_dijkstra", "geomean_speedup_vs_dijkstra", "p95_relative_runtime_to_fastest", "p95_oracle_regret", "report"}
+	header := []string{"graph", "metric", "profile", "seed", "queries", "repeats", "correct", "acbs_mean_ms", "acbs_p50_ms", "acbs_best_ms", "acbs_worst_ms", "acbs_p95_ms", "acbs_p99_ms", "relaxed", "expanded", "queue_pushes", "queue_pops", "stale_pops", "pruned_at_pop", "pruned_at_relax", "alloc_bytes", "alloc_objects", "peak_rss_bytes", "ratio_of_medians_vs_dijkstra", "geomean_speedup_vs_dijkstra", "p95_relative_runtime_to_fastest", "p95_oracle_regret", "report"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
 	for _, row := range report.Rows {
 		record := []string{
 			row.GraphName, row.Metric, row.Profile, strconv.FormatUint(row.Seed, 10), strconv.Itoa(row.Queries), strconv.Itoa(row.Repeats), strconv.FormatBool(row.AllCorrect),
-			fmt.Sprintf("%.6f", float64(row.AegisMedianNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP95NS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP99NS)/1e6),
+			fmt.Sprintf("%.6f", float64(row.AegisMeanNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMedianNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMinNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMaxNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP95NS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP99NS)/1e6),
 			strconv.FormatUint(row.AegisMedianRelaxed, 10), strconv.FormatUint(row.AegisMedianExpanded, 10), strconv.FormatUint(row.AegisMedianQueuePushes, 10), strconv.FormatUint(row.AegisMedianQueuePops, 10), strconv.FormatUint(row.AegisMedianStalePops, 10), strconv.FormatUint(row.AegisMedianPrunedAtPop, 10), strconv.FormatUint(row.AegisMedianPrunedAtRelax, 10),
+			strconv.FormatUint(row.AegisMedianAllocBytes, 10), strconv.FormatUint(row.AegisMedianAllocObjects, 10), strconv.FormatUint(row.PeakRSSBytes, 10),
 			fmt.Sprintf("%.6f", row.RatioOfMediansVsDijkstra), fmt.Sprintf("%.6f", row.GeomeanPerQuerySpeedupVsDijkstra), fmt.Sprintf("%.6f", row.P95RelativeRuntimeToFastestBaseline), fmt.Sprintf("%.6f", row.P95OracleRegret), row.ReportPath,
 		}
 		if err := writer.Write(record); err != nil {

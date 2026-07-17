@@ -17,15 +17,17 @@ import (
 )
 
 type Config struct {
-	Queries    int                `json:"queries"`
-	Seed       uint64             `json:"seed"`
-	Algorithms []search.Algorithm `json:"algorithms"`
-	Warmup     int                `json:"warmup"`
-	Repeats    int                `json:"repeats"`
-	BatchSize  int                `json:"batchSize"`
-	Timeout    time.Duration      `json:"-"`
-	Suite      string             `json:"suite"`
-	PairMode   string             `json:"pairMode"`
+	Queries       int                `json:"queries"`
+	Seed          uint64             `json:"seed"`
+	Algorithms    []search.Algorithm `json:"algorithms"`
+	Warmup        int                `json:"warmup"`
+	Repeats       int                `json:"repeats"`
+	BatchSize     int                `json:"batchSize"`
+	Order         string             `json:"order"`
+	MeasureMemory bool               `json:"measureMemory"`
+	Timeout       time.Duration      `json:"-"`
+	Suite         string             `json:"suite"`
+	PairMode      string             `json:"pairMode"`
 }
 
 type Query struct {
@@ -52,6 +54,9 @@ type Summary struct {
 	Reachable                        int              `json:"reachable"`
 	Correct                          int              `json:"correct"`
 	MedianNS                         int64            `json:"medianNs"`
+	MeanNS                           int64            `json:"meanNs"`
+	MinNS                            int64            `json:"minNs"`
+	MaxNS                            int64            `json:"maxNs"`
 	P95NS                            int64            `json:"p95Ns"`
 	P99NS                            int64            `json:"p99Ns"`
 	MedianEdges                      uint64           `json:"medianRelaxed"`
@@ -62,6 +67,8 @@ type Summary struct {
 	MedianPrunedAtPop                uint64           `json:"medianPrunedAtPop"`
 	MedianPrunedAtRelax              uint64           `json:"medianPrunedAtRelax"`
 	MedianBoundPruned                uint64           `json:"medianBoundPruned"`
+	MedianAllocBytes                 uint64           `json:"medianAllocBytes"`
+	MedianAllocObjects               uint64           `json:"medianAllocObjects"`
 	RatioOfMediansVsDijkstra         float64          `json:"ratioOfMediansVsDijkstra"`
 	MedianPerQuerySpeedupVsDijkstra  float64          `json:"medianPerQuerySpeedupVsDijkstra"`
 	GeomeanPerQuerySpeedupVsDijkstra float64          `json:"geomeanPerQuerySpeedupVsDijkstra"`
@@ -115,11 +122,23 @@ type AegisSummary struct {
 	MedianPrunedAtRelax                    uint64                     `json:"medianPrunedAtRelax"`
 	MedianBoundPruned                      uint64                     `json:"medianBoundPruned"`
 	MedianMeetingChecks                    uint64                     `json:"medianMeetingChecks"`
+	MedianConnectionChecks                 uint64                     `json:"medianConnectionChecks"`
+	MedianFiniteMeetings                   uint64                     `json:"medianFiniteMeetings"`
 	MedianPotentialEvaluations             uint64                     `json:"medianPotentialEvaluations"`
 	MedianUpperBoundUpdates                uint64                     `json:"medianUpperBoundUpdates"`
 	MedianOptimalityGap                    uint64                     `json:"medianOptimalityGap"`
 	DirectionByClass                       map[string]DirectionTotals `json:"directionByClass"`
 	RuntimeComparisons                     []RuntimeComparisonPoint   `json:"runtimeComparisons"`
+}
+
+type MemorySummary struct {
+	Measured          bool   `json:"measured"`
+	PeakRSSBytes      uint64 `json:"peakRssBytes"`
+	GoHeapAllocBytes  uint64 `json:"goHeapAllocBytes"`
+	GoHeapSysBytes    uint64 `json:"goHeapSysBytes"`
+	GoTotalAllocBytes uint64 `json:"goTotalAllocBytes"`
+	GoMallocs         uint64 `json:"goMallocs"`
+	GoNumGC           uint32 `json:"goNumGc"`
 }
 
 type Report struct {
@@ -142,6 +161,7 @@ type Report struct {
 	Summary           []Summary      `json:"summary"`
 	ClassSummary      []ClassSummary `json:"classSummary"`
 	Aegis             AegisSummary   `json:"aegis"`
+	Memory            MemorySummary  `json:"memory"`
 	AllCorrect        bool           `json:"allCorrect"`
 	QueryPoolSize     int            `json:"queryPoolSize"`
 }
@@ -193,6 +213,12 @@ func Run(ctx context.Context, g *graph.Graph, cfg Config) (Report, error) {
 	if cfg.PairMode == "" {
 		cfg.PairMode = "strongly-connected"
 	}
+	if cfg.Order == "" {
+		cfg.Order = "interleaved"
+	}
+	if cfg.Order != "interleaved" && cfg.Order != "rotated" {
+		return Report{}, errors.New("order must be interleaved or rotated")
+	}
 	pool := makePool(g, cfg.PairMode)
 	if len(pool) < 2 {
 		return Report{}, errors.New("query pool needs at least two nodes")
@@ -232,9 +258,19 @@ func Run(ctx context.Context, g *graph.Graph, cfg Config) (Report, error) {
 		}
 		expectedReachable, expectedDistance := expected.Stats.Reachable, expected.Stats.Distance
 
-		order := rotated(cfg.Algorithms, qi)
-		for _, alg := range order {
-			r, runErr := runRepeated(ctx, g, q, alg, cfg.Timeout, cfg.Repeats, cfg.BatchSize)
+		results, runErrors := measureQuery(ctx, g, q, cfg, qi)
+		for _, alg := range cfg.Algorithms {
+			r := results[alg]
+			runErr := runErrors[alg]
+			if cfg.MeasureMemory && runErr == nil {
+				allocBytes, allocObjects, allocErr := measureAllocations(ctx, g, q, alg, cfg.Timeout)
+				if allocErr != nil {
+					runErr = allocErr
+				} else {
+					r.Stats.AllocBytes = allocBytes
+					r.Stats.AllocObjects = allocObjects
+				}
+			}
 			correct := runErr == nil && r.Stats.Reachable == expectedReachable && (!expectedReachable || r.Stats.Distance == expectedDistance) && search.Validate(g, q.Source, q.Target, r)
 			if !correct {
 				report.AllCorrect = false
@@ -258,7 +294,43 @@ func Run(ctx context.Context, g *graph.Graph, cfg Config) (Report, error) {
 	report.Summary = summarize(report.Samples, cfg.Algorithms)
 	report.ClassSummary = summarizeClasses(report.Samples, cfg.Algorithms)
 	report.Aegis = summarizeAegis(report.Samples)
+	report.Memory = captureMemorySummary()
 	return report, nil
+}
+
+func measureQuery(parent context.Context, g *graph.Graph, q Query, cfg Config, queryIndex int) (map[search.Algorithm]search.Result, map[search.Algorithm]error) {
+	results := make(map[search.Algorithm]search.Result, len(cfg.Algorithms))
+	errs := make(map[search.Algorithm]error, len(cfg.Algorithms))
+	if cfg.Order == "rotated" {
+		for _, alg := range rotated(cfg.Algorithms, queryIndex) {
+			r, err := runRepeated(parent, g, q, alg, cfg.Timeout, cfg.Repeats, cfg.BatchSize)
+			results[alg], errs[alg] = r, err
+		}
+		return results, errs
+	}
+
+	buckets := make(map[search.Algorithm][]search.Result, len(cfg.Algorithms))
+	for repeat := 0; repeat < cfg.Repeats; repeat++ {
+		for _, alg := range shuffled(cfg.Algorithms, cfg.Seed, queryIndex, repeat) {
+			r, err := runBatch(parent, g, q, alg, cfg.Timeout, cfg.BatchSize)
+			if err != nil {
+				errs[alg] = err
+				continue
+			}
+			buckets[alg] = append(buckets[alg], r)
+		}
+	}
+	for _, alg := range cfg.Algorithms {
+		if errs[alg] != nil {
+			continue
+		}
+		if len(buckets[alg]) != cfg.Repeats {
+			errs[alg] = errors.New("incomplete interleaved measurement")
+			continue
+		}
+		results[alg] = medianResult(buckets[alg])
+	}
+	return results, errs
 }
 
 func rotated(in []search.Algorithm, offset int) []search.Algorithm {
@@ -272,23 +344,64 @@ func rotated(in []search.Algorithm, offset int) []search.Algorithm {
 	return out
 }
 
+func shuffled(in []search.Algorithm, seed uint64, queryIndex, repeat int) []search.Algorithm {
+	out := append([]search.Algorithm(nil), in...)
+	stream := uint64(queryIndex+1)*0x9e3779b97f4a7c15 ^ uint64(repeat+1)*0xbf58476d1ce4e5b9
+	r := rand.New(rand.NewPCG(seed^0x243f6a8885a308d3, stream^0x13198a2e03707344))
+	r.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
+}
+
 func runRepeated(parent context.Context, g *graph.Graph, q Query, alg search.Algorithm, timeout time.Duration, repeats, batchSize int) (search.Result, error) {
 	results := make([]search.Result, 0, repeats)
 	for i := 0; i < repeats; i++ {
-		var r search.Result
-		started := time.Now()
-		for batch := 0; batch < batchSize; batch++ {
-			var err error
-			r, err = runOne(parent, g, q, alg, timeout)
-			if err != nil {
-				return ResultZero(), err
-			}
+		r, err := runBatch(parent, g, q, alg, timeout, batchSize)
+		if err != nil {
+			return ResultZero(), err
 		}
-		r.Stats.DurationNS = time.Since(started).Nanoseconds() / int64(batchSize)
 		results = append(results, r)
 	}
+	return medianResult(results), nil
+}
+
+func runBatch(parent context.Context, g *graph.Graph, q Query, alg search.Algorithm, timeout time.Duration, batchSize int) (search.Result, error) {
+	var r search.Result
+	started := time.Now()
+	for batch := 0; batch < batchSize; batch++ {
+		var err error
+		r, err = runOne(parent, g, q, alg, timeout)
+		if err != nil {
+			return ResultZero(), err
+		}
+	}
+	r.Stats.DurationNS = time.Since(started).Nanoseconds() / int64(batchSize)
+	return r, nil
+}
+
+func medianResult(results []search.Result) search.Result {
 	sort.Slice(results, func(i, j int) bool { return results[i].Stats.DurationNS < results[j].Stats.DurationNS })
-	return results[len(results)/2], nil
+	return results[len(results)/2]
+}
+
+func measureAllocations(parent context.Context, g *graph.Graph, q Query, alg search.Algorithm, timeout time.Duration) (uint64, uint64, error) {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err := runOne(parent, g, q, alg, timeout)
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		return 0, 0, err
+	}
+	return after.TotalAlloc - before.TotalAlloc, after.Mallocs - before.Mallocs, nil
+}
+
+func captureMemorySummary() MemorySummary {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	return MemorySummary{
+		Measured: true, PeakRSSBytes: readPeakRSSBytes(), GoHeapAllocBytes: stats.HeapAlloc,
+		GoHeapSysBytes: stats.HeapSys, GoTotalAllocBytes: stats.TotalAlloc,
+		GoMallocs: stats.Mallocs, GoNumGC: stats.NumGC,
+	}
 }
 
 // ResultZero keeps error paths explicit without exporting an implementation detail.
@@ -467,6 +580,8 @@ func summarize(samples []Sample, algs []search.Algorithm) []Summary {
 		prunedAtPop := make([]uint64, 0)
 		prunedAtRelax := make([]uint64, 0)
 		boundPruned := make([]uint64, 0)
+		allocBytes := make([]uint64, 0)
+		allocObjects := make([]uint64, 0)
 		summary := Summary{Algorithm: alg}
 		for _, sample := range samples {
 			if sample.Stats.Algorithm != alg {
@@ -488,9 +603,16 @@ func summarize(samples []Sample, algs []search.Algorithm) []Summary {
 			prunedAtPop = append(prunedAtPop, sample.Stats.PrunedAtPop)
 			prunedAtRelax = append(prunedAtRelax, sample.Stats.PrunedAtRelax)
 			boundPruned = append(boundPruned, sample.Stats.BoundPruned)
+			if sample.Stats.AllocBytes > 0 || sample.Stats.AllocObjects > 0 {
+				allocBytes = append(allocBytes, sample.Stats.AllocBytes)
+				allocObjects = append(allocObjects, sample.Stats.AllocObjects)
+			}
 		}
 		if len(durations) > 0 {
 			summary.MedianNS = percentileInt64(durations, 0.5)
+			summary.MeanNS = meanInt64(durations)
+			summary.MinNS = percentileInt64(durations, 0)
+			summary.MaxNS = percentileInt64(durations, 1)
 			summary.P95NS = percentileInt64(durations, 0.95)
 			summary.P99NS = percentileInt64(durations, 0.99)
 			summary.MedianEdges = percentileUint64(relaxed, 0.5)
@@ -501,6 +623,10 @@ func summarize(samples []Sample, algs []search.Algorithm) []Summary {
 			summary.MedianPrunedAtPop = percentileUint64(prunedAtPop, 0.5)
 			summary.MedianPrunedAtRelax = percentileUint64(prunedAtRelax, 0.5)
 			summary.MedianBoundPruned = percentileUint64(boundPruned, 0.5)
+			if len(allocBytes) > 0 {
+				summary.MedianAllocBytes = percentileUint64(allocBytes, 0.5)
+				summary.MedianAllocObjects = percentileUint64(allocObjects, 0.5)
+			}
 		}
 		out = append(out, summary)
 	}
@@ -588,6 +714,8 @@ func summarizeAegis(samples []Sample) AegisSummary {
 	prunedAtRelax := []uint64{}
 	pruned := []uint64{}
 	meetingChecks := []uint64{}
+	connectionChecks := []uint64{}
+	finiteMeetings := []uint64{}
 	potentialEvals := []uint64{}
 	upperUpdates := []uint64{}
 	gaps := []uint64{}
@@ -656,6 +784,8 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		prunedAtRelax = append(prunedAtRelax, aegis.Stats.PrunedAtRelax)
 		pruned = append(pruned, aegis.Stats.BoundPruned)
 		meetingChecks = append(meetingChecks, aegis.Stats.MeetingChecks)
+		connectionChecks = append(connectionChecks, aegis.Stats.ConnectionChecks)
+		finiteMeetings = append(finiteMeetings, aegis.Stats.FiniteMeetings)
 		potentialEvals = append(potentialEvals, aegis.Stats.PotentialEvaluations)
 		upperUpdates = append(upperUpdates, aegis.Stats.UpperBoundUpdates)
 		gaps = append(gaps, aegis.Stats.OptimalityGap)
@@ -705,6 +835,8 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		out.MedianPrunedAtRelax = percentileUint64(prunedAtRelax, 0.5)
 		out.MedianBoundPruned = percentileUint64(pruned, 0.5)
 		out.MedianMeetingChecks = percentileUint64(meetingChecks, 0.5)
+		out.MedianConnectionChecks = percentileUint64(connectionChecks, 0.5)
+		out.MedianFiniteMeetings = percentileUint64(finiteMeetings, 0.5)
 		out.MedianPotentialEvaluations = percentileUint64(potentialEvals, 0.5)
 		out.MedianUpperBoundUpdates = percentileUint64(upperUpdates, 0.5)
 		out.MedianOptimalityGap = percentileUint64(gaps, 0.5)
@@ -724,6 +856,17 @@ func geometricMean(values []float64) float64 {
 		sum += math.Log(value)
 	}
 	return math.Exp(sum / float64(len(values)))
+}
+
+func meanInt64(values []int64) int64 {
+	if len(values) == 0 {
+		return 0
+	}
+	var mean float64
+	for i, value := range values {
+		mean += (float64(value) - mean) / float64(i+1)
+	}
+	return int64(math.Round(mean))
 }
 
 func percentileInt64(values []int64, p float64) int64 {

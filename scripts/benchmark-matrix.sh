@@ -10,6 +10,8 @@ QUERIES="${AEGIS_QUERIES:-50}"
 REPEATS="${AEGIS_REPEATS:-3}"
 BATCH="${AEGIS_BATCH:-1}"
 TIMEOUT="${AEGIS_TIMEOUT:-30s}"
+ORDER="${AEGIS_ORDER:-interleaved}"
+MEASURE_MEMORY="${AEGIS_MEASURE_MEMORY:-0}"
 GOMAXPROCS="${GOMAXPROCS:-1}"
 export GOMAXPROCS
 
@@ -25,9 +27,12 @@ for graph in "${graphs[@]}"; do
     run_dir="$OUT/$name/seed-$seed"
     mkdir -p "$run_dir"
     echo "[$name seed=$seed]"
+    memory_flag=()
+    [[ "$MEASURE_MEMORY" == "1" ]] && memory_flag+=(--measure-memory)
     "$BIN" benchmark \
       --graph "$graph" \
       --queries "$QUERIES" --repeats "$REPEATS" --batch "$BATCH" \
+      --order "$ORDER" "${memory_flag[@]}" \
       --suite mixed --pair-mode strongly-connected --seed "$seed" --timeout "$TIMEOUT" \
       --research \
       --output "$run_dir/report.json" --html "$run_dir/report.html"

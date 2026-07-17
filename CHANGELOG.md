@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0-experimental
+
+- Interleave algorithms within every repetition using a deterministic per-query shuffle to reduce cache, thermal, and fixed-order bias.
+- Add mean, minimum, maximum, p50, p95, and p99 latency to CLI, JSON, CSV, and HTML.
+- Add optional untimed per-query allocation measurement with `--measure-memory`.
+- Record process peak RSS and Go heap/runtime memory totals.
+- Split connection accounting into all connection checks, finite forward/backward overlaps, and incumbent updates.
+- Add publication-scale ten-seed validation and standalone memory-profile scripts.
+- Preserve `--order rotated` for comparison with v0.3 reports.
+
 ## 0.3.0-experimental
 
 - Split queue work into pushes, pops, and stale pops.

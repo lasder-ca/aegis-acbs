@@ -65,6 +65,8 @@ type Stats struct {
 	ForwardEfficiency       float64   `json:"forwardEfficiency,omitempty"`
 	BackwardEfficiency      float64   `json:"backwardEfficiency,omitempty"`
 	MeetingChecks           uint64    `json:"meetingChecks,omitempty"`
+	ConnectionChecks        uint64    `json:"connectionChecks,omitempty"`
+	FiniteMeetings          uint64    `json:"finiteMeetings,omitempty"`
 	UpperBoundUpdates       uint64    `json:"upperBoundUpdates,omitempty"`
 	PrunedAtPop             uint64    `json:"prunedAtPop,omitempty"`
 	PrunedAtRelax           uint64    `json:"prunedAtRelax,omitempty"`
@@ -75,6 +77,8 @@ type Stats struct {
 	OptimalityGap           uint64    `json:"optimalityGap,omitempty"`
 	SchedulerVersion        string    `json:"schedulerVersion,omitempty"`
 	PotentialModel          string    `json:"potentialModel,omitempty"`
+	AllocBytes              uint64    `json:"allocBytes,omitempty"`
+	AllocObjects            uint64    `json:"allocObjects,omitempty"`
 }
 
 type Result struct {

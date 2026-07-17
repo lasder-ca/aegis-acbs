@@ -188,6 +188,8 @@ func benchmark(args []string) error {
 	htmlOut := fs.String("html", "benchmark.html", "self-contained visual HTML report; empty disables")
 	repeats := fs.Int("repeats", 9, "odd repeated measurements per query and algorithm")
 	batchSize := fs.Int("batch", 0, "executions per measurement; 0 selects by graph size")
+	order := fs.String("order", "interleaved", "measurement order: interleaved or rotated")
+	measureMemory := fs.Bool("measure-memory", false, "run an untimed allocation pass per query and algorithm")
 	algs := fs.String("algorithms", "", "comma-separated algorithms; default chooses valid exact algorithms")
 	research := fs.Bool("research", false, "include ACBS static-scheduler and no-pruning ablations")
 	timeout := fs.Duration("timeout", 30*time.Second, "per-query timeout")
@@ -228,7 +230,7 @@ func benchmark(args []string) error {
 		}
 		list = append(list, search.AegisStatic, search.AegisNoPrune, search.Aegis)
 	}
-	report, err := bench.Run(context.Background(), g, bench.Config{Queries: *queries, Seed: *seed, Algorithms: list, Warmup: 3, Repeats: *repeats, BatchSize: *batchSize, Timeout: *timeout, Suite: *suite, PairMode: *pairMode})
+	report, err := bench.Run(context.Background(), g, bench.Config{Queries: *queries, Seed: *seed, Algorithms: list, Warmup: 3, Repeats: *repeats, BatchSize: *batchSize, Order: *order, MeasureMemory: *measureMemory, Timeout: *timeout, Suite: *suite, PairMode: *pairMode})
 	if err != nil {
 		return err
 	}
@@ -241,20 +243,24 @@ func benchmark(args []string) error {
 		}
 	}
 	for _, s := range report.Summary {
-		fmt.Printf("%-14s median=%8.3fms p95=%8.3fms p99=%8.3fms relaxed=%d expanded=%d correct=%d/%d\n",
-			s.Algorithm, float64(s.MedianNS)/1e6, float64(s.P95NS)/1e6, float64(s.P99NS)/1e6,
-			s.MedianEdges, s.MedianExpanded, s.Correct, s.Runs)
+		fmt.Printf("%-14s mean=%8.3fms median=%8.3fms best=%8.3fms worst=%8.3fms p95=%8.3fms p99=%8.3fms relaxed=%d expanded=%d alloc=%dB correct=%d/%d\n",
+			s.Algorithm, float64(s.MeanNS)/1e6, float64(s.MedianNS)/1e6, float64(s.MinNS)/1e6, float64(s.MaxNS)/1e6, float64(s.P95NS)/1e6, float64(s.P99NS)/1e6,
+			s.MedianEdges, s.MedianExpanded, s.MedianAllocBytes, s.Correct, s.Runs)
 	}
 	if report.Aegis.Comparisons > 0 {
 		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx relative-runtime-to-fastest(p50/p95)=%.3fx/%.3fx oracle-regret(p50/p95)=%.3fx/%.3fx\n",
 			report.Aegis.RatioOfMediansVsDijkstra, report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
 			report.Aegis.MedianRelativeRuntimeToFastestBaseline, report.Aegis.P95RelativeRuntimeToFastestBaseline,
 			report.Aegis.MedianOracleRegret, report.Aegis.P95OracleRegret)
-		fmt.Printf("acbs-work      forward-share=%.1f%% switches=%d chunks=%d pushes=%d pops=%d stale=%d pruned(pop/relax)=%d/%d meetings=%d\n",
+		fmt.Printf("acbs-work      forward-share=%.1f%% switches=%d chunks=%d pushes=%d pops=%d stale=%d pruned(pop/relax)=%d/%d connections=%d finite-meetings=%d upper-updates=%d\n",
 			100*report.Aegis.MedianForwardShare, report.Aegis.MedianDirectionSwitches, report.Aegis.MedianChunks,
 			report.Aegis.MedianQueuePushes, report.Aegis.MedianQueuePops, report.Aegis.MedianStalePops,
-			report.Aegis.MedianPrunedAtPop, report.Aegis.MedianPrunedAtRelax, report.Aegis.MedianMeetingChecks)
+			report.Aegis.MedianPrunedAtPop, report.Aegis.MedianPrunedAtRelax, report.Aegis.MedianConnectionChecks,
+			report.Aegis.MedianFiniteMeetings, report.Aegis.MedianUpperBoundUpdates)
 	}
+	fmt.Printf("memory         peak-rss=%.2fMiB go-heap=%.2fMiB go-heap-sys=%.2fMiB total-alloc=%.2fMiB gc=%d\n",
+		float64(report.Memory.PeakRSSBytes)/(1024*1024), float64(report.Memory.GoHeapAllocBytes)/(1024*1024),
+		float64(report.Memory.GoHeapSysBytes)/(1024*1024), float64(report.Memory.GoTotalAllocBytes)/(1024*1024), report.Memory.GoNumGC)
 	if !report.AllCorrect {
 		return errors.New("correctness mismatch detected")
 	}

@@ -32,7 +32,7 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 	r, err := Run(context.Background(), g, Config{
 		Queries: 9, Repeats: 3, BatchSize: 2, Seed: 1010,
 		Algorithms: []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.Aegis},
-		Suite:      "mixed", PairMode: "strongly-connected",
+		Suite:      "mixed", PairMode: "strongly-connected", MeasureMemory: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +49,17 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 	if r.Aegis.MedianOracleRegret < 1 || r.Aegis.RatioOfMediansVsDijkstra <= 0 {
 		t.Fatalf("invalid benchmark semantics: %+v", r.Aegis)
 	}
+	if r.Config.Order != "interleaved" || !r.Memory.Measured || r.Memory.GoHeapSysBytes == 0 {
+		t.Fatalf("missing measurement metadata: config=%+v memory=%+v", r.Config, r.Memory)
+	}
+	for _, summary := range r.Summary {
+		if summary.MinNS <= 0 || summary.MeanNS < summary.MinNS || summary.MaxNS < summary.MeanNS {
+			t.Fatalf("invalid descriptive statistics: %+v", summary)
+		}
+		if summary.MedianAllocObjects == 0 {
+			t.Fatalf("expected allocation pass for %s: %+v", summary.Algorithm, summary)
+		}
+	}
 	path := filepath.Join(t.TempDir(), "report.html")
 	if err := WriteHTML(path, r); err != nil {
 		t.Fatal(err)
@@ -60,6 +71,19 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 	html := string(b)
 	if !strings.Contains(html, "ACBS benchmark") || strings.Contains(html, "__AEGIS_REPORT_BASE64__") {
 		t.Fatal("standalone report was not rendered")
+	}
+}
+
+func TestInterleavedOrderIsDeterministicAndVariesByRepeat(t *testing.T) {
+	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.Aegis}
+	a := shuffled(algs, 1010, 4, 2)
+	b := shuffled(algs, 1010, 4, 2)
+	c := shuffled(algs, 1010, 4, 3)
+	if fmt.Sprint(a) != fmt.Sprint(b) {
+		t.Fatalf("same seed did not reproduce order: %v vs %v", a, b)
+	}
+	if fmt.Sprint(a) == fmt.Sprint(c) {
+		t.Fatalf("adjacent repeats unexpectedly used identical order: %v", a)
 	}
 }
 
@@ -103,6 +127,11 @@ func TestAggregateDirectoryBuildsMultiSeedMatrix(t *testing.T) {
 	}
 	if matrix.Groups[0].Runs != 2 || len(matrix.Groups[0].Seeds) != 2 || matrix.Groups[0].WorstP95OracleRegret < 1 {
 		t.Fatalf("unexpected matrix group: %+v", matrix.Groups[0])
+	}
+	for _, row := range matrix.Rows {
+		if row.AegisMeanNS <= 0 || row.AegisMinNS <= 0 || row.AegisMaxNS < row.AegisMeanNS || row.PeakRSSBytes == 0 {
+			t.Fatalf("missing v0.4 matrix telemetry: %+v", row)
+		}
 	}
 	if err := WriteMatrixJSON(filepath.Join(dir, "matrix.json"), matrix); err != nil {
 		t.Fatal(err)

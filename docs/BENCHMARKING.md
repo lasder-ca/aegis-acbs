@@ -2,109 +2,106 @@
 
 ## Principles
 
-The benchmark harness treats Dijkstra as the correctness reference and measures each candidate on the same source/target pairs. Correctness reference runs are outside timed samples.
+Dijkstra is the correctness reference and is run outside timed samples. Starting in v0.4, algorithms are interleaved inside every repetition. A deterministic shuffle derived from the seed, query index, and repeat index changes the order while preserving exact reproducibility.
 
-For each query and algorithm, the harness executes an odd number of repeated measurements and retains the median. Algorithm order rotates by query index to reduce systematic cache and thermal bias. Large graphs default to batch size one.
+```text
+for each query:
+  for each repeat:
+    shuffle(all algorithms)
+    measure every algorithm once in that order
+  retain the median repetition for each algorithm
+```
+
+Use `--order rotated` only when comparing directly with v0.3 methodology.
 
 ## Latency
 
-Reports contain:
+Reports contain query-level:
 
+- `meanNs`
+- `minNs` (best)
+- `maxNs` (worst)
 - `medianNs` (p50)
 - `p95Ns`
 - `p99Ns`
 
-These are percentiles across query-level median measurements, not percentiles of every inner repetition.
+Each query-level value is the median of its repeated inner measurements. Aggregate percentiles are then computed across queries.
+
+## Memory
+
+`--measure-memory` adds a separate untimed execution for every query and algorithm and records:
+
+- `allocBytes`: delta of Go `TotalAlloc`.
+- `allocObjects`: delta of Go `Mallocs`.
+
+The untimed pass prevents memory instrumentation from contaminating latency. Allocation values include query-context and harness allocations surrounding the algorithm call.
+
+The report also records process-wide:
+
+- `peakRssBytes`
+- `goHeapAllocBytes`
+- `goHeapSysBytes`
+- `goTotalAllocBytes`
+- `goMallocs`
+- `goNumGc`
+
+Peak RSS includes the graph, all algorithms used by the process, Go runtime, and report data. For an ACBS-only process measurement:
+
+```bash
+scripts/memory-profile.sh path/to/graph.aegis
+```
 
 ## Speedup definitions
 
-The following values are intentionally separate:
-
 ```text
 ratio of medians = median(Dijkstra query times) / median(candidate query times)
-
 per-query speedup(q) = Dijkstra time(q) / candidate time(q)
-
 median per-query speedup = median(per-query speedup)
-
 geometric-mean speedup = exp(mean(log(per-query speedup)))
 ```
 
-They can differ and must not share one label.
-
 ## Fastest-baseline comparison
-
-For each query:
 
 ```text
 fastest baseline = min(Dijkstra, bidirectional Dijkstra, A*)
-
 relative runtime = ACBS time / fastest baseline time
-
 oracle regret = max(1, relative runtime)
 ```
 
-Relative runtime can be below 1 when ACBS is faster than every baseline. Oracle regret cannot be below 1.
+## Work and connection counters
 
-## Work counters
+- `expanded`: adjacency lists processed.
+- `relaxed`: edges examined.
+- `queuePushes`, `queuePops`, `stalePops`: priority-queue activity.
+- `prunedAtPop`, `prunedAtRelax`, `boundPruned`: incumbent-bound pruning.
+- `connectionChecks`: every attempted forward/backward connection check.
+- `finiteMeetings`: checks where both directional labels are finite.
+- `meetingChecks`: compatibility alias for `finiteMeetings`.
+- `upperBoundUpdates`: finite meetings that improved the incumbent.
 
-- `expanded`: states whose outgoing or incoming adjacency was processed.
-- `relaxed`: edges examined, including edges rejected by overflow or an incumbent bound.
-- `queuePushes`: priority-queue insertions.
-- `queuePops`: valid and stale heap removals.
-- `stalePops`: removed entries superseded by a better distance or already settled.
-- `prunedAtPop`: states rejected by `g+h >= U` after leaving the queue.
-- `prunedAtRelax`: candidate labels rejected by `g+h >= U` before queue insertion.
-- `boundPruned`: `prunedAtPop + prunedAtRelax`.
-- `meetingChecks`: finite forward/backward labels considered for an incumbent.
-- `upperBoundUpdates`: meeting checks that improved the incumbent.
+The accounting invariant is:
 
-`relaxed` can remain unchanged while pruning improves runtime because relaxation-time pruning prevents queue insertion and later expansion. The split counters make that effect visible.
-
-## Query classes
-
-The mixed suite rotates through:
-
-- `local`: nearby candidate selected from a sampled pool.
-- `random`: uniform source/target selection inside the query pool.
-- `regional`: distant candidate selected from a sampled pool.
-
-The default pool is the largest strongly connected component.
-
-## Multi-seed matrix
-
-Run all `.aegis` graphs in a directory over five seeds:
-
-```bash
-AEGIS_GRAPH_DIR=.data/regional-graphs \
-AEGIS_REPORT_DIR=artifacts/matrix \
-scripts/benchmark-matrix.sh
+```text
+connectionChecks >= finiteMeetings >= upperBoundUpdates
+boundPruned = prunedAtPop + prunedAtRelax
 ```
 
-The script creates individual JSON/HTML reports and then runs:
+## Publication-scale validation
+
+The default research suite uses Tokyo, Yokohama, Osaka, and Nagoya, both distance and time graphs, ten seeds, and 1,000 queries per seed:
 
 ```bash
-bin/aegis aggregate \
-  --input-dir artifacts/matrix \
-  --output artifacts/matrix/benchmark-matrix.json \
-  --csv artifacts/matrix/benchmark-matrix.csv \
-  --html artifacts/matrix/benchmark-matrix.html
+scripts/validate-research.sh
 ```
 
-The aggregate report includes median and worst p95 values across seeds. No single seed is sufficient evidence of a stable advantage.
-
-## Reproducibility controls
-
-Recommended settings for large road graphs:
+Recommended environment controls:
 
 ```bash
 GOMAXPROCS=1
---queries 50
---repeats 3
---batch 1
---pair-mode strongly-connected
---suite mixed
---research
+AEGIS_ORDER=interleaved
+AEGIS_QUERIES=1000
+AEGIS_REPEATS=3
+AEGIS_MEASURE_MEMORY=1
 ```
 
-Increase query and repeat counts for publication-grade results. Record CPU model, governor, temperature policy, OS, Go version, graph checksum, graph import options, and raw JSON files.
+Record CPU model, governor, temperature policy, OS, Go version, graph checksum, import options, raw JSON, and command line. For p99 claims, increase the query count beyond 1,000 and report confidence intervals.

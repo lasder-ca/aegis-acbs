@@ -20,15 +20,20 @@ go build -trimpath -o "$TMP/current-aegis" "$ROOT/cmd/aegis"
 )
 
 run_one() {
-  local binary="$1" output="$2"
+  local binary="$1" output="$2" order_arg="${3:-}"
+  local extra=()
+  [[ -n "$order_arg" ]] && extra+=(--order "$order_arg")
   GOMAXPROCS=1 "$binary" benchmark \
     --graph "$GRAPH" --queries "$QUERIES" --repeats "$REPEATS" --batch "$BATCH" \
     --suite mixed --pair-mode strongly-connected --seed 1010 \
     --algorithms dijkstra,bidijkstra,astar,aegis \
+    "${extra[@]}" \
     --output "$output" --html "${output%.json}.html"
 }
 run_one "$TMP/old-aegis" "$OUT/old.json"
-run_one "$TMP/current-aegis" "$OUT/current.json"
+# Rotated mode isolates implementation/telemetry changes from the new default
+# interleaving methodology when comparing against v0.3.
+run_one "$TMP/current-aegis" "$OUT/current.json" rotated
 
 python3 - "$OUT/old.json" "$OUT/current.json" "$OUT/summary.md" <<'PY'
 import json, sys
