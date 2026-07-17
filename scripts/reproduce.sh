@@ -13,6 +13,7 @@ bin/aegis import-osm --input benchdata/hatfield-uk.osm --output artifacts/repro-
 cp artifacts/repro-graphs/hatfield-distance.aegis artifacts/hatfield-uk.aegis
 
 GOMAXPROCS=1 bin/aegis benchmark --graph artifacts/repro-graphs/hatfield-distance.aegis --queries 100 --repeats 5 --batch 8 --order interleaved --measure-memory --research --suite mixed --seed 1010 --output artifacts/hatfield-uk-benchmark.json --html artifacts/hatfield-uk-benchmark.html
+GOMAXPROCS=4 bin/aegis stress --graph artifacts/repro-graphs/hatfield-distance.aegis --queries 2000 --workers 4 --verify-every 10 --seed 7070 --output artifacts/hatfield-uk-stress.json
 
 AEGIS_BIN="$ROOT/bin/aegis" \
 AEGIS_GRAPH_DIR="$ROOT/artifacts/repro-graphs" \

@@ -1,4 +1,4 @@
-# Aegis Coupled-Bound Search v2
+# Aegis Coupled-Bound Search v3
 
 ## Scope
 
@@ -81,7 +81,7 @@ L₂ >= U₂
 
 返却JSONには`upperBound`、`lowerBound`、`optimalityGap`を証明用メトリクスとして記録する。厳密解では`optimalityGap = 0`となる。
 
-## Incumbent-bound pruning
+## Optional incumbent-bound pruning experiment
 
 上界`U`が得られた後、次を満たす前向き状態は、より短い経路へつながらない。
 
@@ -95,7 +95,7 @@ g_F(v) + h_F(v) >= U
 g_B(v) + h_B(v) >= U
 ```
 
-該当状態はqueueへの追加または展開を省略する。これは実行順序だけではなく探索量も減らすが、使用する値は証明可能な下界と実在する完全経路上界だけである。
+該当状態はqueueへの追加または展開を省略できる。ただし東京道路網ではこの条件がほぼ発火せず、追加のbound評価だけが残った。v0.7の既定`aegis`では無効化し、`aegis-prune`でのみ評価する。安全性の補題は実験変種のために維持する。
 
 ## Edge-work adaptive scheduling
 
@@ -121,12 +121,15 @@ efficiency = coupled_lower_bound_gain
 
 研究用に次を実装する。
 
-- `aegis`: edge-work scheduler + incumbent pruning
-- `aegis-static`: 下界key中心の固定scheduler + incumbent pruning
-- `aegis-no-prune`: edge-work scheduler、上界枝刈りなし
+- `aegis`: edge-work scheduler、incumbent枝刈りなし
+- `aegis-static`: 固定scheduler、incumbent枝刈りなし
+- `aegis-prune`: edge-work scheduler + incumbent枝刈り
+- `aegis-projection`: edge-work scheduler + 線形射影potential
+- `aegis-no-prune`: 旧版互換alias
 
 ```bash
 aegis benchmark --graph city.aegis --research
+aegis benchmark --graph city.aegis --experimental
 ```
 
 ## Complexity
@@ -169,3 +172,7 @@ For every edge `u→v`, Cauchy–Schwarz gives:
 ```
 
 After conservative scaling and integer truncation, both reduced edge directions remain non-negative. This is the same ACBS scheduler and termination rule with a cheaper, potentially weaker feasible potential. The default `aegis` continues to use the chord-difference potential.
+
+## v0.7 ablation isolation
+
+The production and static variants now share the same chord potential, radix queues, CSR graph, coupled termination test, and no incumbent-pruning pass. Therefore `aegis` versus `aegis-static` isolates only the direction scheduler. `aegis-prune` and `aegis-projection` are deliberately excluded from the default research set because they change separate mechanisms.

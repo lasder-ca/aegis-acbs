@@ -41,7 +41,7 @@ func TestBidirectionalAlgorithmsMatchDijkstraExhaustiveSmallDirected(t *testing.
 					if err != nil {
 						t.Fatal(err)
 					}
-					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisProjection, AegisStatic, AegisNoPrune} {
+					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune} {
 						b, err := Run(ctx, g, s, d, alg)
 						if err != nil {
 							t.Fatal(err)
@@ -83,7 +83,7 @@ func TestAStarAndAegisMatchDijkstraRoadLike(t *testing.T) {
 		for q := 0; q < 30; q++ {
 			s, d := rnd.Intn(n), rnd.Intn(n)
 			a, _ := Run(ctx, g, s, d, Dijkstra)
-			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
+			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
 				b, err := Run(ctx, g, s, d, alg)
 				if err != nil {
 					t.Fatal(err)
@@ -345,7 +345,7 @@ func TestACBSPrunesAfterEarlyIncumbent(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, _ := Run(context.Background(), g, 0, 1, Dijkstra)
-	got, err := Run(context.Background(), g, 0, 1, Aegis)
+	got, err := Run(context.Background(), g, 0, 1, AegisPrune)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,5 +363,26 @@ func TestACBSPrunesAfterEarlyIncumbent(t *testing.T) {
 	}
 	if got.Stats.ConnectionChecks < got.Stats.FiniteMeetings || got.Stats.FiniteMeetings != got.Stats.MeetingChecks || got.Stats.FiniteMeetings < got.Stats.UpperBoundUpdates {
 		t.Fatalf("invalid connection accounting: %+v", got.Stats)
+	}
+}
+
+func TestProductionACBSDisablesInactiveIncumbentPruning(t *testing.T) {
+	g := gridGraph(t, 30, 30, true)
+	production, err := Run(context.Background(), g, 0, len(g.Nodes)-1, Aegis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := Run(context.Background(), g, 0, len(g.Nodes)-1, AegisNoPrune)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if production.Stats.Distance != legacy.Stats.Distance || production.Stats.Relaxed != legacy.Stats.Relaxed || production.Stats.Expanded != legacy.Stats.Expanded {
+		t.Fatalf("legacy no-prune alias diverged: production=%+v legacy=%+v", production.Stats, legacy.Stats)
+	}
+	if production.Stats.BoundEvaluations != 0 || production.Stats.BoundPruned != 0 || production.Stats.PrunedAtPop != 0 || production.Stats.PrunedAtRelax != 0 {
+		t.Fatalf("production ACBS unexpectedly ran incumbent pruning: %+v", production.Stats)
+	}
+	if production.Stats.SchedulerVersion != acbsSchedulerVersion {
+		t.Fatalf("unexpected production scheduler label: %q", production.Stats.SchedulerVersion)
 	}
 }

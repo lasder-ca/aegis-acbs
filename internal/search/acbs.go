@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	acbsSchedulerVersion    = "edge-efficiency-v2"
+	acbsSchedulerVersion    = "edge-efficiency-v3"
 	acbsChordPotentialModel = "balanced-chord-v3"
 	acbsProjectionModel     = "balanced-projection-v1"
 )
@@ -21,19 +21,33 @@ type acbsOptions struct {
 }
 
 func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
-	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: Aegis, adaptive: true, pruning: true})
+	// The incumbent-bound pruning ablation was inactive on the large road
+	// benchmarks and added extra bound evaluation work. The production ACBS
+	// path therefore keeps the exact coupled-bound termination rule but does
+	// not run the optional per-node incumbent pruning experiment.
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: Aegis, adaptive: true, pruning: false})
 }
 
 func acbsStatic(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
-	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisStatic, adaptive: false, pruning: true})
+	// Match production ACBS except for the scheduler, so this ablation isolates
+	// the adaptive edge-efficiency scheduler without a pruning confounder.
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisStatic, adaptive: false, pruning: false})
+}
+
+func acbsPrune(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisPrune, adaptive: true, pruning: true})
 }
 
 func acbsNoPrune(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
-	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisNoPrune, adaptive: true, pruning: false})
+	// Backward-compatible alias retained for old benchmark command lines.
+	r, err := acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisNoPrune, adaptive: true, pruning: false})
+	return r, err
 }
 
 func acbsProjection(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
-	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisProjection, adaptive: true, pruning: true, projection: true})
+	// Experimental potential ablation only. It intentionally shares the same
+	// no-pruning production search path so the potential is the sole variable.
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisProjection, adaptive: true, pruning: false, projection: true})
 }
 
 // ACBS implements Aegis Coupled-Bound Search.
@@ -42,8 +56,8 @@ func acbsProjection(ctx context.Context, g *graph.Graph, source, target int) (Re
 // reduced costs induced by a balanced feasible potential. The scheduler only
 // decides which frontier receives the next edge-work budget; correctness is
 // controlled exclusively by the incumbent upper bound and the coupled lower
-// bound. Once an incumbent exists, admissible per-node bounds safely prune
-// states that cannot improve it.
+// bound. Optional per-node incumbent pruning is retained only as an explicit
+// experimental ablation because it did not activate on the large road runs.
 func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, opts acbsOptions) (Result, error) {
 	modelName := acbsChordPotentialModel
 	if opts.projection {
@@ -479,10 +493,10 @@ func peekValid(q *radixHeap, dist []uint64, settled []bool, stats *Stats) (item,
 
 func schedulerName(opts acbsOptions) string {
 	if !opts.adaptive {
-		return "lower-key-static-v1"
+		return "lower-key-static-v2"
 	}
-	if !opts.pruning {
-		return acbsSchedulerVersion + "-no-prune"
+	if opts.pruning {
+		return acbsSchedulerVersion + "-incumbent-prune"
 	}
 	return acbsSchedulerVersion
 }

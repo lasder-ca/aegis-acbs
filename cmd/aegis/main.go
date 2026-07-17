@@ -39,6 +39,8 @@ func main() {
 		err = benchmark(os.Args[2:])
 	case "aggregate":
 		err = aggregate(os.Args[2:])
+	case "stress":
+		err = stress(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -65,6 +67,7 @@ Usage:
   aegis route --graph city.aegis --source ID|lat,lon --target ID|lat,lon [--algorithm aegis]
   aegis benchmark --graph city.aegis --queries 100 --repeats 9 --output report.json --html report.html
   aegis aggregate --input-dir artifacts/benchmarks --output matrix.json --csv matrix.csv --html matrix.html
+  aegis stress --graph city.aegis --queries 10000 --workers 8 --verify-every 100
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -191,7 +194,8 @@ func benchmark(args []string) error {
 	order := fs.String("order", "interleaved", "measurement order: interleaved or rotated")
 	measureMemory := fs.Bool("measure-memory", false, "run an untimed allocation pass per query and algorithm")
 	algs := fs.String("algorithms", "", "comma-separated algorithms; default chooses valid exact algorithms")
-	research := fs.Bool("research", false, "include ACBS static-scheduler and no-pruning ablations")
+	research := fs.Bool("research", false, "include the ACBS static-scheduler ablation")
+	experimental := fs.Bool("experimental", false, "include incumbent-pruning and projection-potential experiments")
 	timeout := fs.Duration("timeout", 30*time.Second, "per-query timeout")
 	suite := fs.String("suite", "mixed", "mixed, local, regional, or random")
 	pairMode := fs.String("pair-mode", "strongly-connected", "strongly-connected or all")
@@ -223,12 +227,16 @@ func benchmark(args []string) error {
 			list = append(list, search.Algorithm(s))
 		}
 	}
-	if *research && len(list) == 0 {
+	if (*research || *experimental) && len(list) == 0 {
 		list = []search.Algorithm{search.Dijkstra, search.BiDijkstra}
 		if g.MinCostPerMeter > 0 {
 			list = append(list, search.AStar)
 		}
-		list = append(list, search.AegisStatic, search.AegisNoPrune, search.AegisProjection, search.Aegis)
+		list = append(list, search.AegisStatic)
+		if *experimental {
+			list = append(list, search.AegisPrune, search.AegisProjection)
+		}
+		list = append(list, search.Aegis)
 	}
 	report, err := bench.Run(context.Background(), g, bench.Config{Queries: *queries, Seed: *seed, Algorithms: list, Warmup: 3, Repeats: *repeats, BatchSize: *batchSize, Order: *order, MeasureMemory: *measureMemory, Timeout: *timeout, Suite: *suite, PairMode: *pairMode})
 	if err != nil {
@@ -248,11 +256,11 @@ func benchmark(args []string) error {
 			s.MedianEdges, s.MedianExpanded, s.MedianAllocBytes, s.Correct, s.Runs)
 	}
 	if report.Aegis.Comparisons > 0 {
-		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx relative-runtime-to-fastest(p50/p95)=%.3fx/%.3fx oracle-regret(p50/p95)=%.3fx/%.3fx\n",
+		fmt.Printf("acbs           ratio-of-medians-vs-dijkstra=%.3fx geomean-speedup=%.3fx runtime-vs-fastest-classical(p50/p95)=%.3fx/%.3fx classical-oracle-regret(p50/p95)=%.3fx/%.3fx\n",
 			report.Aegis.RatioOfMediansVsDijkstra, report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
-			report.Aegis.MedianRelativeRuntimeToFastestBaseline, report.Aegis.P95RelativeRuntimeToFastestBaseline,
-			report.Aegis.MedianOracleRegret, report.Aegis.P95OracleRegret)
-		fmt.Printf("acbs-work      forward-share=%.1f%% switches=%d chunks=%d pushes=%d pops=%d stale=%d pruned(pop/relax)=%d/%d connections=%d finite-meetings=%d upper-updates=%d\n",
+			report.Aegis.MedianRuntimeVsFastestClassical, report.Aegis.P95RuntimeVsFastestClassical,
+			report.Aegis.MedianClassicalOracleRegret, report.Aegis.P95ClassicalOracleRegret)
+		fmt.Printf("acbs-work      median-forward-share=%.1f%% median-switches=%d median-chunks=%d median-pushes=%d median-pops=%d median-stale=%d median-pruned(pop/relax)=%d/%d median-connections=%d median-finite-meetings=%d median-upper-updates=%d\n",
 			100*report.Aegis.MedianForwardShare, report.Aegis.MedianDirectionSwitches, report.Aegis.MedianChunks,
 			report.Aegis.MedianQueuePushes, report.Aegis.MedianQueuePops, report.Aegis.MedianStalePops,
 			report.Aegis.MedianPrunedAtPop, report.Aegis.MedianPrunedAtRelax, report.Aegis.MedianConnectionChecks,
@@ -267,6 +275,52 @@ func benchmark(args []string) error {
 	fmt.Println("report:", *out)
 	if *htmlOut != "" {
 		fmt.Println("visual report:", *htmlOut)
+	}
+	return nil
+}
+
+func stress(args []string) error {
+	fs := flag.NewFlagSet("stress", flag.ContinueOnError)
+	path := fs.String("graph", "", "Aegis graph")
+	queries := fs.Int("queries", 10_000, "total concurrent query count")
+	workers := fs.Int("workers", 0, "concurrent workers; 0 uses GOMAXPROCS")
+	seed := fs.Uint64("seed", 7070, "deterministic seed")
+	alg := fs.String("algorithm", "aegis", "algorithm under stress")
+	verifyEvery := fs.Int("verify-every", 100, "verify every Nth query against Dijkstra; 0 disables")
+	timeout := fs.Duration("timeout", 30*time.Second, "per-query timeout")
+	suite := fs.String("suite", "mixed", "mixed, local, regional, or random")
+	pairMode := fs.String("pair-mode", "strongly-connected", "strongly-connected or all")
+	out := fs.String("output", "stress.json", "JSON report")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *path == "" {
+		return errors.New("--graph is required")
+	}
+	g, err := graph.Load(*path)
+	if err != nil {
+		return err
+	}
+	report, err := bench.RunStress(context.Background(), g, bench.StressConfig{
+		Queries: *queries, Workers: *workers, Seed: *seed, Algorithm: search.Algorithm(*alg),
+		VerifyEvery: *verifyEvery, Timeout: *timeout, Suite: *suite, PairMode: *pairMode,
+	})
+	if writeErr := bench.WriteStressJSON(*out, report); writeErr != nil {
+		return writeErr
+	}
+	fmt.Printf("stress         algorithm=%s workers=%d completed=%d verified=%d correct=%d errors=%d throughput=%.2f qps\n",
+		report.Config.Algorithm, report.Config.Workers, report.Completed, report.Verified, report.Correct, report.Errors, report.ThroughputQPS)
+	fmt.Printf("latency        mean=%.3fms median=%.3fms p95=%.3fms p99=%.3fms worst=%.3fms\n",
+		float64(report.MeanNS)/1e6, float64(report.MedianNS)/1e6, float64(report.P95NS)/1e6, float64(report.P99NS)/1e6, float64(report.MaxNS)/1e6)
+	fmt.Printf("memory         peak-rss=%.2fMiB go-heap=%.2fMiB total-alloc=%.2fMiB gc=%d\n",
+		float64(report.Memory.PeakRSSBytes)/(1024*1024), float64(report.Memory.GoHeapAllocBytes)/(1024*1024),
+		float64(report.Memory.GoTotalAllocBytes)/(1024*1024), report.Memory.GoNumGC)
+	fmt.Println("report:", *out)
+	if err != nil {
+		return err
+	}
+	if !report.AllVerifiedCorrect {
+		return errors.New("stress verification mismatch or query error detected")
 	}
 	return nil
 }

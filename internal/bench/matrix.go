@@ -17,61 +17,71 @@ import (
 )
 
 type MatrixRow struct {
-	ReportPath                             string  `json:"reportPath"`
-	Version                                string  `json:"version"`
-	GraphName                              string  `json:"graphName"`
-	GraphSource                            string  `json:"graphSource"`
-	Metric                                 string  `json:"metric"`
-	Profile                                string  `json:"profile"`
-	Nodes                                  int     `json:"nodes"`
-	Edges                                  int     `json:"edges"`
-	Seed                                   uint64  `json:"seed"`
-	Queries                                int     `json:"queries"`
-	Repeats                                int     `json:"repeats"`
-	AllCorrect                             bool    `json:"allCorrect"`
-	AegisMedianNS                          int64   `json:"aegisMedianNs"`
-	AegisMeanNS                            int64   `json:"aegisMeanNs"`
-	AegisMinNS                             int64   `json:"aegisMinNs"`
-	AegisMaxNS                             int64   `json:"aegisMaxNs"`
-	AegisP95NS                             int64   `json:"aegisP95Ns"`
-	AegisP99NS                             int64   `json:"aegisP99Ns"`
-	AegisMedianRelaxed                     uint64  `json:"aegisMedianRelaxed"`
-	AegisMedianExpanded                    uint64  `json:"aegisMedianExpanded"`
-	AegisMedianQueuePushes                 uint64  `json:"aegisMedianQueuePushes"`
-	AegisMedianQueuePops                   uint64  `json:"aegisMedianQueuePops"`
-	AegisMedianStalePops                   uint64  `json:"aegisMedianStalePops"`
-	AegisMedianPrunedAtPop                 uint64  `json:"aegisMedianPrunedAtPop"`
-	AegisMedianPrunedAtRelax               uint64  `json:"aegisMedianPrunedAtRelax"`
-	AegisMedianAllocBytes                  uint64  `json:"aegisMedianAllocBytes"`
-	AegisMedianAllocObjects                uint64  `json:"aegisMedianAllocObjects"`
-	PeakRSSBytes                           uint64  `json:"peakRssBytes"`
-	RatioOfMediansVsDijkstra               float64 `json:"ratioOfMediansVsDijkstra"`
-	MedianPerQuerySpeedupVsDijkstra        float64 `json:"medianPerQuerySpeedupVsDijkstra"`
-	GeomeanPerQuerySpeedupVsDijkstra       float64 `json:"geomeanPerQuerySpeedupVsDijkstra"`
-	MedianRelativeRuntimeToFastestBaseline float64 `json:"medianRelativeRuntimeToFastestBaseline"`
-	P95RelativeRuntimeToFastestBaseline    float64 `json:"p95RelativeRuntimeToFastestBaseline"`
-	MedianOracleRegret                     float64 `json:"medianOracleRegret"`
-	P95OracleRegret                        float64 `json:"p95OracleRegret"`
+	ReportPath                       string  `json:"reportPath"`
+	Version                          string  `json:"version"`
+	GraphName                        string  `json:"graphName"`
+	GraphSource                      string  `json:"graphSource"`
+	Metric                           string  `json:"metric"`
+	Profile                          string  `json:"profile"`
+	Nodes                            int     `json:"nodes"`
+	Edges                            int     `json:"edges"`
+	Seed                             uint64  `json:"seed"`
+	Queries                          int     `json:"queries"`
+	Repeats                          int     `json:"repeats"`
+	AllCorrect                       bool    `json:"allCorrect"`
+	AegisMedianNS                    int64   `json:"aegisMedianNs"`
+	AegisMeanNS                      int64   `json:"aegisMeanNs"`
+	AegisMinNS                       int64   `json:"aegisMinNs"`
+	AegisMaxNS                       int64   `json:"aegisMaxNs"`
+	AegisP95NS                       int64   `json:"aegisP95Ns"`
+	AegisP99NS                       int64   `json:"aegisP99Ns"`
+	AegisMedianRelaxed               uint64  `json:"aegisMedianRelaxed"`
+	AegisMedianExpanded              uint64  `json:"aegisMedianExpanded"`
+	AegisMedianQueuePushes           uint64  `json:"aegisMedianQueuePushes"`
+	AegisMedianQueuePops             uint64  `json:"aegisMedianQueuePops"`
+	AegisMedianStalePops             uint64  `json:"aegisMedianStalePops"`
+	AegisMedianPrunedAtPop           uint64  `json:"aegisMedianPrunedAtPop"`
+	AegisMedianPrunedAtRelax         uint64  `json:"aegisMedianPrunedAtRelax"`
+	AegisMedianAllocBytes            uint64  `json:"aegisMedianAllocBytes"`
+	AegisMedianAllocObjects          uint64  `json:"aegisMedianAllocObjects"`
+	PeakRSSBytes                     uint64  `json:"peakRssBytes"`
+	RatioOfMediansVsDijkstra         float64 `json:"ratioOfMediansVsDijkstra"`
+	MedianPerQuerySpeedupVsDijkstra  float64 `json:"medianPerQuerySpeedupVsDijkstra"`
+	GeomeanPerQuerySpeedupVsDijkstra float64 `json:"geomeanPerQuerySpeedupVsDijkstra"`
+	MedianRuntimeVsFastestClassical  float64 `json:"medianRuntimeVsFastestClassical"`
+	P95RuntimeVsFastestClassical     float64 `json:"p95RuntimeVsFastestClassical"`
+	MedianClassicalOracleRegret      float64 `json:"medianClassicalOracleRegret"`
+	P95ClassicalOracleRegret         float64 `json:"p95ClassicalOracleRegret"`
+	// Deprecated aliases for v0.3-v0.6 matrix consumers.
+	MedianRelativeRuntimeToFastestBaseline float64 `json:"medianRelativeRuntimeToFastestBaseline,omitempty"`
+	P95RelativeRuntimeToFastestBaseline    float64 `json:"p95RelativeRuntimeToFastestBaseline,omitempty"`
+	MedianOracleRegret                     float64 `json:"medianOracleRegret,omitempty"`
+	P95OracleRegret                        float64 `json:"p95OracleRegret,omitempty"`
 }
 
 type MatrixGroup struct {
-	GraphName                         string   `json:"graphName"`
-	Metric                            string   `json:"metric"`
-	Profile                           string   `json:"profile"`
-	Runs                              int      `json:"runs"`
-	Seeds                             []uint64 `json:"seeds"`
-	AllCorrect                        bool     `json:"allCorrect"`
-	MedianOfAegisMediansNS            int64    `json:"medianOfAegisMediansNs"`
-	MedianOfAegisP95NS                int64    `json:"medianOfAegisP95Ns"`
-	WorstAegisP95NS                   int64    `json:"worstAegisP95Ns"`
-	MedianAegisRelaxed                uint64   `json:"medianAegisRelaxed"`
-	MedianAegisExpanded               uint64   `json:"medianAegisExpanded"`
-	GeomeanRatioOfMediansVsDijkstra   float64  `json:"geomeanRatioOfMediansVsDijkstra"`
-	GeomeanPerQuerySpeedupVsDijkstra  float64  `json:"geomeanPerQuerySpeedupVsDijkstra"`
-	MedianP95RelativeRuntimeToFastest float64  `json:"medianP95RelativeRuntimeToFastest"`
-	WorstP95RelativeRuntimeToFastest  float64  `json:"worstP95RelativeRuntimeToFastest"`
-	MedianP95OracleRegret             float64  `json:"medianP95OracleRegret"`
-	WorstP95OracleRegret              float64  `json:"worstP95OracleRegret"`
+	GraphName                          string   `json:"graphName"`
+	Metric                             string   `json:"metric"`
+	Profile                            string   `json:"profile"`
+	Runs                               int      `json:"runs"`
+	Seeds                              []uint64 `json:"seeds"`
+	AllCorrect                         bool     `json:"allCorrect"`
+	MedianOfAegisMediansNS             int64    `json:"medianOfAegisMediansNs"`
+	MedianOfAegisP95NS                 int64    `json:"medianOfAegisP95Ns"`
+	WorstAegisP95NS                    int64    `json:"worstAegisP95Ns"`
+	MedianAegisRelaxed                 uint64   `json:"medianAegisRelaxed"`
+	MedianAegisExpanded                uint64   `json:"medianAegisExpanded"`
+	GeomeanRatioOfMediansVsDijkstra    float64  `json:"geomeanRatioOfMediansVsDijkstra"`
+	GeomeanPerQuerySpeedupVsDijkstra   float64  `json:"geomeanPerQuerySpeedupVsDijkstra"`
+	MedianP95RuntimeVsFastestClassical float64  `json:"medianP95RuntimeVsFastestClassical"`
+	WorstP95RuntimeVsFastestClassical  float64  `json:"worstP95RuntimeVsFastestClassical"`
+	MedianP95ClassicalOracleRegret     float64  `json:"medianP95ClassicalOracleRegret"`
+	WorstP95ClassicalOracleRegret      float64  `json:"worstP95ClassicalOracleRegret"`
+	// Deprecated aliases for v0.3-v0.6 matrix consumers.
+	MedianP95RelativeRuntimeToFastest float64 `json:"medianP95RelativeRuntimeToFastest,omitempty"`
+	WorstP95RelativeRuntimeToFastest  float64 `json:"worstP95RelativeRuntimeToFastest,omitempty"`
+	MedianP95OracleRegret             float64 `json:"medianP95OracleRegret,omitempty"`
+	WorstP95OracleRegret              float64 `json:"worstP95OracleRegret,omitempty"`
 }
 
 type MatrixReport struct {
@@ -162,6 +172,22 @@ func matrixRow(path string, report Report) (MatrixRow, bool) {
 	if !found {
 		return MatrixRow{}, false
 	}
+	runtimeP50 := report.Aegis.MedianRuntimeVsFastestClassical
+	if runtimeP50 == 0 {
+		runtimeP50 = report.Aegis.MedianRelativeRuntimeToFastestBaseline
+	}
+	runtimeP95 := report.Aegis.P95RuntimeVsFastestClassical
+	if runtimeP95 == 0 {
+		runtimeP95 = report.Aegis.P95RelativeRuntimeToFastestBaseline
+	}
+	regretP50 := report.Aegis.MedianClassicalOracleRegret
+	if regretP50 == 0 {
+		regretP50 = report.Aegis.MedianOracleRegret
+	}
+	regretP95 := report.Aegis.P95ClassicalOracleRegret
+	if regretP95 == 0 {
+		regretP95 = report.Aegis.P95OracleRegret
+	}
 	return MatrixRow{
 		ReportPath: path, Version: report.Version, GraphName: report.GraphName, GraphSource: report.GraphSource,
 		Metric: string(report.Metric), Profile: report.Profile, Nodes: report.Nodes, Edges: report.Edges,
@@ -171,16 +197,17 @@ func matrixRow(path string, report Report) (MatrixRow, bool) {
 		AegisMedianRelaxed: aegis.MedianEdges, AegisMedianExpanded: aegis.MedianExpanded,
 		AegisMedianQueuePushes: aegis.MedianQueuePushes, AegisMedianQueuePops: aegis.MedianQueuePops,
 		AegisMedianStalePops: aegis.MedianStalePops, AegisMedianPrunedAtPop: aegis.MedianPrunedAtPop,
-		AegisMedianPrunedAtRelax:               aegis.MedianPrunedAtRelax,
-		AegisMedianAllocBytes:                  aegis.MedianAllocBytes,
-		AegisMedianAllocObjects:                aegis.MedianAllocObjects,
-		PeakRSSBytes:                           report.Memory.PeakRSSBytes,
-		RatioOfMediansVsDijkstra:               report.Aegis.RatioOfMediansVsDijkstra,
-		MedianPerQuerySpeedupVsDijkstra:        report.Aegis.MedianPerQuerySpeedupVsDijkstra,
-		GeomeanPerQuerySpeedupVsDijkstra:       report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
-		MedianRelativeRuntimeToFastestBaseline: report.Aegis.MedianRelativeRuntimeToFastestBaseline,
-		P95RelativeRuntimeToFastestBaseline:    report.Aegis.P95RelativeRuntimeToFastestBaseline,
-		MedianOracleRegret:                     report.Aegis.MedianOracleRegret, P95OracleRegret: report.Aegis.P95OracleRegret,
+		AegisMedianPrunedAtRelax:         aegis.MedianPrunedAtRelax,
+		AegisMedianAllocBytes:            aegis.MedianAllocBytes,
+		AegisMedianAllocObjects:          aegis.MedianAllocObjects,
+		PeakRSSBytes:                     report.Memory.PeakRSSBytes,
+		RatioOfMediansVsDijkstra:         report.Aegis.RatioOfMediansVsDijkstra,
+		MedianPerQuerySpeedupVsDijkstra:  report.Aegis.MedianPerQuerySpeedupVsDijkstra,
+		GeomeanPerQuerySpeedupVsDijkstra: report.Aegis.GeomeanPerQuerySpeedupVsDijkstra,
+		MedianRuntimeVsFastestClassical:  runtimeP50, P95RuntimeVsFastestClassical: runtimeP95,
+		MedianClassicalOracleRegret: regretP50, P95ClassicalOracleRegret: regretP95,
+		MedianRelativeRuntimeToFastestBaseline: runtimeP50, P95RelativeRuntimeToFastestBaseline: runtimeP95,
+		MedianOracleRegret: regretP50, P95OracleRegret: regretP95,
 	}, true
 }
 
@@ -215,8 +242,8 @@ func groupMatrixRows(rows []MatrixRow) []MatrixGroup {
 			expanded = append(expanded, item.AegisMedianExpanded)
 			ratioSpeedups = append(ratioSpeedups, item.RatioOfMediansVsDijkstra)
 			geomeanSpeedups = append(geomeanSpeedups, item.GeomeanPerQuerySpeedupVsDijkstra)
-			p95Relative = append(p95Relative, item.P95RelativeRuntimeToFastestBaseline)
-			p95Regret = append(p95Regret, item.P95OracleRegret)
+			p95Relative = append(p95Relative, item.P95RuntimeVsFastestClassical)
+			p95Regret = append(p95Regret, item.P95ClassicalOracleRegret)
 		}
 		for seed := range seedSet {
 			group.Seeds = append(group.Seeds, seed)
@@ -229,10 +256,14 @@ func groupMatrixRows(rows []MatrixRow) []MatrixGroup {
 		group.MedianAegisExpanded = percentileUint64(expanded, .5)
 		group.GeomeanRatioOfMediansVsDijkstra = geometricMean(ratioSpeedups)
 		group.GeomeanPerQuerySpeedupVsDijkstra = geometricMean(geomeanSpeedups)
-		group.MedianP95RelativeRuntimeToFastest = percentileFloat64(p95Relative, .5)
-		group.WorstP95RelativeRuntimeToFastest = percentileFloat64(p95Relative, 1)
-		group.MedianP95OracleRegret = percentileFloat64(p95Regret, .5)
-		group.WorstP95OracleRegret = percentileFloat64(p95Regret, 1)
+		group.MedianP95RuntimeVsFastestClassical = percentileFloat64(p95Relative, .5)
+		group.WorstP95RuntimeVsFastestClassical = percentileFloat64(p95Relative, 1)
+		group.MedianP95ClassicalOracleRegret = percentileFloat64(p95Regret, .5)
+		group.WorstP95ClassicalOracleRegret = percentileFloat64(p95Regret, 1)
+		group.MedianP95RelativeRuntimeToFastest = group.MedianP95RuntimeVsFastestClassical
+		group.WorstP95RelativeRuntimeToFastest = group.WorstP95RuntimeVsFastestClassical
+		group.MedianP95OracleRegret = group.MedianP95ClassicalOracleRegret
+		group.WorstP95OracleRegret = group.WorstP95ClassicalOracleRegret
 		out = append(out, group)
 	}
 	return out
@@ -254,7 +285,7 @@ func WriteMatrixCSV(path string, report MatrixReport) error {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	header := []string{"graph", "metric", "profile", "seed", "queries", "repeats", "correct", "acbs_mean_ms", "acbs_p50_ms", "acbs_best_ms", "acbs_worst_ms", "acbs_p95_ms", "acbs_p99_ms", "relaxed", "expanded", "queue_pushes", "queue_pops", "stale_pops", "pruned_at_pop", "pruned_at_relax", "alloc_bytes", "alloc_objects", "peak_rss_bytes", "ratio_of_medians_vs_dijkstra", "geomean_speedup_vs_dijkstra", "p95_relative_runtime_to_fastest", "p95_oracle_regret", "report"}
+	header := []string{"graph", "metric", "profile", "seed", "queries", "repeats", "correct", "acbs_mean_ms", "acbs_p50_ms", "acbs_best_ms", "acbs_worst_ms", "acbs_p95_ms", "acbs_p99_ms", "relaxed", "expanded", "queue_pushes", "queue_pops", "stale_pops", "pruned_at_pop", "pruned_at_relax", "alloc_bytes", "alloc_objects", "peak_rss_bytes", "ratio_of_medians_vs_dijkstra", "geomean_speedup_vs_dijkstra", "p95_runtime_vs_fastest_classical", "p95_classical_oracle_regret", "report"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -264,7 +295,7 @@ func WriteMatrixCSV(path string, report MatrixReport) error {
 			fmt.Sprintf("%.6f", float64(row.AegisMeanNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMedianNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMinNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisMaxNS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP95NS)/1e6), fmt.Sprintf("%.6f", float64(row.AegisP99NS)/1e6),
 			strconv.FormatUint(row.AegisMedianRelaxed, 10), strconv.FormatUint(row.AegisMedianExpanded, 10), strconv.FormatUint(row.AegisMedianQueuePushes, 10), strconv.FormatUint(row.AegisMedianQueuePops, 10), strconv.FormatUint(row.AegisMedianStalePops, 10), strconv.FormatUint(row.AegisMedianPrunedAtPop, 10), strconv.FormatUint(row.AegisMedianPrunedAtRelax, 10),
 			strconv.FormatUint(row.AegisMedianAllocBytes, 10), strconv.FormatUint(row.AegisMedianAllocObjects, 10), strconv.FormatUint(row.PeakRSSBytes, 10),
-			fmt.Sprintf("%.6f", row.RatioOfMediansVsDijkstra), fmt.Sprintf("%.6f", row.GeomeanPerQuerySpeedupVsDijkstra), fmt.Sprintf("%.6f", row.P95RelativeRuntimeToFastestBaseline), fmt.Sprintf("%.6f", row.P95OracleRegret), row.ReportPath,
+			fmt.Sprintf("%.6f", row.RatioOfMediansVsDijkstra), fmt.Sprintf("%.6f", row.GeomeanPerQuerySpeedupVsDijkstra), fmt.Sprintf("%.6f", row.P95RuntimeVsFastestClassical), fmt.Sprintf("%.6f", row.P95ClassicalOracleRegret), row.ReportPath,
 		}
 		if err := writer.Write(record); err != nil {
 			return err

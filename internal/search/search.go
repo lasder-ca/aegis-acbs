@@ -18,7 +18,8 @@ const (
 	AStar           Algorithm = "astar"
 	Aegis           Algorithm = "aegis"
 	AegisStatic     Algorithm = "aegis-static"
-	AegisNoPrune    Algorithm = "aegis-no-prune"
+	AegisPrune      Algorithm = "aegis-prune"
+	AegisNoPrune    Algorithm = "aegis-no-prune" // deprecated compatibility alias for aegis
 	AegisProjection Algorithm = "aegis-projection"
 	Portfolio       Algorithm = "portfolio"
 	AegisRace       Algorithm = "aegis-race"
@@ -109,6 +110,8 @@ func Run(ctx context.Context, g *graph.Graph, source, target int, alg Algorithm)
 		r, err = acbs(ctx, g, source, target)
 	case AegisStatic:
 		r, err = acbsStatic(ctx, g, source, target)
+	case AegisPrune:
+		r, err = acbsPrune(ctx, g, source, target)
 	case AegisNoPrune:
 		r, err = acbsNoPrune(ctx, g, source, target)
 	case AegisProjection:

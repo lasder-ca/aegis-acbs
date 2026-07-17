@@ -60,12 +60,12 @@ median per-query speedup = median(per-query speedup)
 geometric-mean speedup = exp(mean(log(per-query speedup)))
 ```
 
-## Fastest-baseline comparison
+## Fastest classical-baseline comparison
 
 ```text
-fastest baseline = min(Dijkstra, bidirectional Dijkstra, A*)
-relative runtime = ACBS time / fastest baseline time
-oracle regret = max(1, relative runtime)
+fastest classical baseline = min(Dijkstra, bidirectional Dijkstra, A*)
+runtime ratio = ACBS time / fastest classical baseline time
+classical oracle regret = max(1, runtime ratio)
 ```
 
 ## Work and connection counters
@@ -122,16 +122,37 @@ scripts/compare-allocations.sh
 
 The generated grid fixture isolates queue and path allocation behavior. It does not replace the real OSM-derived city matrix for algorithm-performance claims. Queue backing arrays are retained after warm-up, so lower `B/op` and `allocs/op` should be evaluated together with ACBS-only peak RSS.
 
-## v0.6 dual-potential comparison
+## Experimental pruning and dual-potential comparison
 
-Compare the stronger chord potential with the cheaper projection potential explicitly:
+The default research set only isolates the scheduler. Add experimental mechanisms explicitly:
 
 ```bash
 aegis benchmark \
   --graph city.aegis \
-  --algorithms dijkstra,bidijkstra,astar,aegis,aegis-projection \
+  --algorithms dijkstra,bidijkstra,astar,aegis-static,aegis,aegis-prune,aegis-projection \
   --order interleaved \
   --measure-memory
 ```
 
 Do not merge the two ACBS variants into a selector for publication results. Report each variant's latency and work counters separately. A projection speedup accompanied by substantially higher expansion counts should be described as an implementation tradeoff rather than a stronger heuristic.
+
+## Concurrent and soak validation
+
+Use the in-process stress runner to exercise pooled workspaces under real goroutine concurrency:
+
+```bash
+GOMAXPROCS=8 aegis stress \
+  --graph city.aegis --queries 10000 --workers 8 \
+  --verify-every 100 --output stress.json
+```
+
+`verify-every=1` verifies every query against Dijkstra. Larger values reduce reference-search cost while retaining deterministic sampling. A zero value disables Dijkstra verification but still validates returned path continuity.
+
+Worker scaling and repeated-process soak helpers:
+
+```bash
+scripts/stress-matrix.sh city.aegis artifacts/stress
+scripts/soak.sh city.aegis artifacts/soak
+```
+
+Report throughput together with p95/p99 and peak RSS. A throughput increase accompanied by exploding p99 or RSS is not considered a successful scaling result.

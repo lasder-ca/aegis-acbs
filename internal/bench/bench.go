@@ -77,11 +77,15 @@ type Summary struct {
 }
 
 type RuntimeComparisonPoint struct {
-	QueryIndex      int              `json:"queryIndex"`
-	Class           string           `json:"class"`
-	FastestBaseline search.Algorithm `json:"fastestBaseline"`
-	RelativeRuntime float64          `json:"relativeRuntime"`
-	OracleRegret    float64          `json:"oracleRegret"`
+	QueryIndex                int              `json:"queryIndex"`
+	Class                     string           `json:"class"`
+	FastestClassicalBaseline  search.Algorithm `json:"fastestClassicalBaseline"`
+	RuntimeVsFastestClassical float64          `json:"runtimeVsFastestClassical"`
+	ClassicalOracleRegret     float64          `json:"classicalOracleRegret"`
+	// Deprecated v0.3-v0.6 aliases retained for report consumers.
+	FastestBaseline search.Algorithm `json:"fastestBaseline,omitempty"`
+	RelativeRuntime float64          `json:"relativeRuntime,omitempty"`
+	OracleRegret    float64          `json:"oracleRegret,omitempty"`
 }
 
 type ClassSummary struct {
@@ -99,13 +103,20 @@ type DirectionTotals struct {
 }
 
 type AegisSummary struct {
-	Comparisons                            int                        `json:"comparisons"`
-	MedianRelativeRuntimeToFastestBaseline float64                    `json:"medianRelativeRuntimeToFastestBaseline"`
-	P95RelativeRuntimeToFastestBaseline    float64                    `json:"p95RelativeRuntimeToFastestBaseline"`
-	MaxRelativeRuntimeToFastestBaseline    float64                    `json:"maxRelativeRuntimeToFastestBaseline"`
-	MedianOracleRegret                     float64                    `json:"medianOracleRegret"`
-	P95OracleRegret                        float64                    `json:"p95OracleRegret"`
-	MaxOracleRegret                        float64                    `json:"maxOracleRegret"`
+	Comparisons                     int     `json:"comparisons"`
+	MedianRuntimeVsFastestClassical float64 `json:"medianRuntimeVsFastestClassical"`
+	P95RuntimeVsFastestClassical    float64 `json:"p95RuntimeVsFastestClassical"`
+	MaxRuntimeVsFastestClassical    float64 `json:"maxRuntimeVsFastestClassical"`
+	MedianClassicalOracleRegret     float64 `json:"medianClassicalOracleRegret"`
+	P95ClassicalOracleRegret        float64 `json:"p95ClassicalOracleRegret"`
+	MaxClassicalOracleRegret        float64 `json:"maxClassicalOracleRegret"`
+	// Deprecated v0.3-v0.6 aliases retained for report consumers.
+	MedianRelativeRuntimeToFastestBaseline float64                    `json:"medianRelativeRuntimeToFastestBaseline,omitempty"`
+	P95RelativeRuntimeToFastestBaseline    float64                    `json:"p95RelativeRuntimeToFastestBaseline,omitempty"`
+	MaxRelativeRuntimeToFastestBaseline    float64                    `json:"maxRelativeRuntimeToFastestBaseline,omitempty"`
+	MedianOracleRegret                     float64                    `json:"medianOracleRegret,omitempty"`
+	P95OracleRegret                        float64                    `json:"p95OracleRegret,omitempty"`
+	MaxOracleRegret                        float64                    `json:"maxOracleRegret,omitempty"`
 	RatioOfMediansVsDijkstra               float64                    `json:"ratioOfMediansVsDijkstra"`
 	MedianPerQuerySpeedupVsDijkstra        float64                    `json:"medianPerQuerySpeedupVsDijkstra"`
 	GeomeanPerQuerySpeedupVsDijkstra       float64                    `json:"geomeanPerQuerySpeedupVsDijkstra"`
@@ -757,8 +768,9 @@ func summarizeAegis(samples []Sample) AegisSummary {
 		relativeRuntimes = append(relativeRuntimes, relativeRuntime)
 		oracleRegrets = append(oracleRegrets, oracleRegret)
 		out.RuntimeComparisons = append(out.RuntimeComparisons, RuntimeComparisonPoint{
-			QueryIndex: queryIndex, Class: aegis.QueryClass, FastestBaseline: fastest,
-			RelativeRuntime: relativeRuntime, OracleRegret: oracleRegret,
+			QueryIndex: queryIndex, Class: aegis.QueryClass,
+			FastestClassicalBaseline: fastest, RuntimeVsFastestClassical: relativeRuntime, ClassicalOracleRegret: oracleRegret,
+			FastestBaseline: fastest, RelativeRuntime: relativeRuntime, OracleRegret: oracleRegret,
 		})
 		if dijkstra, ok := core[search.Dijkstra]; ok && dijkstra.Stats.DurationNS > 0 {
 			speedups = append(speedups, float64(dijkstra.Stats.DurationNS)/float64(aegis.Stats.DurationNS))
@@ -797,12 +809,18 @@ func summarizeAegis(samples []Sample) AegisSummary {
 	}
 
 	if len(relativeRuntimes) > 0 {
-		out.MedianRelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 0.5)
-		out.P95RelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 0.95)
-		out.MaxRelativeRuntimeToFastestBaseline = percentileFloat64(relativeRuntimes, 1)
-		out.MedianOracleRegret = percentileFloat64(oracleRegrets, 0.5)
-		out.P95OracleRegret = percentileFloat64(oracleRegrets, 0.95)
-		out.MaxOracleRegret = percentileFloat64(oracleRegrets, 1)
+		out.MedianRuntimeVsFastestClassical = percentileFloat64(relativeRuntimes, 0.5)
+		out.P95RuntimeVsFastestClassical = percentileFloat64(relativeRuntimes, 0.95)
+		out.MaxRuntimeVsFastestClassical = percentileFloat64(relativeRuntimes, 1)
+		out.MedianClassicalOracleRegret = percentileFloat64(oracleRegrets, 0.5)
+		out.P95ClassicalOracleRegret = percentileFloat64(oracleRegrets, 0.95)
+		out.MaxClassicalOracleRegret = percentileFloat64(oracleRegrets, 1)
+		out.MedianRelativeRuntimeToFastestBaseline = out.MedianRuntimeVsFastestClassical
+		out.P95RelativeRuntimeToFastestBaseline = out.P95RuntimeVsFastestClassical
+		out.MaxRelativeRuntimeToFastestBaseline = out.MaxRuntimeVsFastestClassical
+		out.MedianOracleRegret = out.MedianClassicalOracleRegret
+		out.P95OracleRegret = out.P95ClassicalOracleRegret
+		out.MaxOracleRegret = out.MaxClassicalOracleRegret
 	}
 	if len(speedups) > 0 {
 		out.MedianPerQuerySpeedupVsDijkstra = percentileFloat64(speedups, 0.5)

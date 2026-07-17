@@ -73,7 +73,7 @@ L₂ = min_F + min_B
 
 は未証明完全経路のreduced cost下界となる。
 
-## Lemma 5: incumbent pruning is safe
+## Lemma 5: optional incumbent pruning is safe
 
 `U`を実際に発見済みの完全経路コストとする。前向き状態`v`について、任意の`v→t`経路コストは`h_F(v)`以上である。
 
@@ -128,3 +128,7 @@ therefore:
 Integer truncation can increase the difference by less than one cost unit. Since edge costs are positive integers, the resulting integer difference is at most `2c(u,v)`. Thus both forward and backward doubled reduced costs remain non-negative. Lemmas 3–5 and the main optimality theorem then apply unchanged.
 
 The monotone radix heap is valid because relaxing a non-negative reduced edge from a removed key cannot generate a key smaller than the last key removed from that directional heap.
+
+## v0.7 production note
+
+The default `aegis` does not invoke Lemma 5 pruning. Exactness still follows from feasible reduced costs, coupled lower-bound termination, and valid incumbent construction. `aegis-prune` uses Lemma 5 as an opt-in experiment.

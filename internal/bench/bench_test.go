@@ -46,7 +46,7 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 	if len(r.ClassSummary) == 0 || len(r.Aegis.RuntimeComparisons) != 9 || len(r.Aegis.DirectionByClass) == 0 {
 		t.Fatal("missing visual summary data")
 	}
-	if r.Aegis.MedianOracleRegret < 1 || r.Aegis.RatioOfMediansVsDijkstra <= 0 {
+	if r.Aegis.MedianClassicalOracleRegret < 1 || r.Aegis.MedianRuntimeVsFastestClassical <= 0 || r.Aegis.RatioOfMediansVsDijkstra <= 0 {
 		t.Fatalf("invalid benchmark semantics: %+v", r.Aegis)
 	}
 	if r.Config.Order != "interleaved" || !r.Memory.Measured || r.Memory.GoHeapSysBytes == 0 {
@@ -125,7 +125,7 @@ func TestAggregateDirectoryBuildsMultiSeedMatrix(t *testing.T) {
 	if matrix.ReportCount != 2 || len(matrix.Groups) != 1 || !matrix.AllCorrect {
 		t.Fatalf("unexpected matrix: %+v", matrix)
 	}
-	if matrix.Groups[0].Runs != 2 || len(matrix.Groups[0].Seeds) != 2 || matrix.Groups[0].WorstP95OracleRegret < 1 {
+	if matrix.Groups[0].Runs != 2 || len(matrix.Groups[0].Seeds) != 2 || matrix.Groups[0].WorstP95ClassicalOracleRegret < 1 {
 		t.Fatalf("unexpected matrix group: %+v", matrix.Groups[0])
 	}
 	for _, row := range matrix.Rows {
@@ -149,5 +149,46 @@ func TestAggregateDirectoryBuildsMultiSeedMatrix(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "Benchmark Matrix") || strings.Contains(string(data), "__AEGIS_MATRIX_BASE64__") {
 		t.Fatal("matrix HTML was not rendered")
+	}
+}
+
+func TestStressRunsConcurrentACBSAndVerifiesSamples(t *testing.T) {
+	g := graph.New("stress-road", "fixture", "car", graph.MetricDistance)
+	g.Nodes = []graph.Node{
+		{ID: 1, Lat: 35.000, Lon: 139.000},
+		{ID: 2, Lat: 35.001, Lon: 139.001},
+		{ID: 3, Lat: 35.002, Lon: 139.002},
+		{ID: 4, Lat: 35.003, Lon: 139.003},
+		{ID: 5, Lat: 35.004, Lon: 139.004},
+	}
+	g.Adj = [][]graph.Edge{
+		{{To: 1, Cost: 150_000}, {To: 2, Cost: 310_000}},
+		{{To: 0, Cost: 150_000}, {To: 2, Cost: 150_000}},
+		{{To: 1, Cost: 150_000}, {To: 3, Cost: 150_000}},
+		{{To: 2, Cost: 150_000}, {To: 4, Cost: 150_000}},
+		{{To: 3, Cost: 150_000}},
+	}
+	if err := g.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	report, err := RunStress(context.Background(), g, StressConfig{
+		Queries: 120, Workers: 6, Seed: 7070, Algorithm: search.Aegis,
+		VerifyEvery: 3, Suite: "mixed", PairMode: "strongly-connected",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Completed != 120 || report.Verified == 0 || report.Correct != report.Verified || report.Errors != 0 || !report.AllVerifiedCorrect {
+		t.Fatalf("unexpected stress result: %+v", report)
+	}
+	if report.ThroughputQPS <= 0 || report.MedianNS <= 0 || report.Memory.PeakRSSBytes == 0 {
+		t.Fatalf("missing stress telemetry: %+v", report)
+	}
+	path := filepath.Join(t.TempDir(), "stress.json")
+	if err := WriteStressJSON(path, report); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "throughputQps") {
+		t.Fatalf("stress report not written: err=%v", err)
 	}
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-experimental
+
+- Remove inactive incumbent-pruning evaluation from the default ACBS hot path.
+- Add explicit `aegis-prune` and retain `aegis-no-prune` as a compatibility alias.
+- Make `aegis-static` isolate only the adaptive direction scheduler.
+- Move projection and pruning variants behind `benchmark --experimental`.
+- Clarify fastest-classical runtime and classical-oracle-regret labels.
+- Label connection and queue work counters as medians in CLI output.
+- Add in-process concurrent `stress` validation with sampled Dijkstra checks.
+- Add worker-scaling and repeated soak scripts.
+
 ## 0.6.0-experimental
 
 - Replace bidirectional binary heaps with exact monotone radix heaps over non-negative reduced keys.
