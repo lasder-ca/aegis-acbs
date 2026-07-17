@@ -43,30 +43,35 @@ type ReplayAlgorithmSummary struct {
 }
 
 type RegretReplayCase struct {
-	SourceReport         string                   `json:"sourceReport"`
-	QueryIndex           int                      `json:"queryIndex"`
-	Class                string                   `json:"class"`
-	SourceID             int64                    `json:"sourceId"`
-	TargetID             int64                    `json:"targetId"`
-	StraightLineMeters   float64                  `json:"straightLineMeters"`
-	DistanceRatio        float64                  `json:"distanceRatio"`
-	OriginalBaseline     search.Algorithm         `json:"originalBaseline"`
-	OriginalRatio        float64                  `json:"originalRatio"`
-	OriginalPenaltyNS    int64                    `json:"originalPenaltyNs"`
-	Algorithms           []ReplayAlgorithmSummary `json:"algorithms"`
-	FastestClassical     search.Algorithm         `json:"fastestClassical"`
-	FastestClassicalNS   int64                    `json:"fastestClassicalNs"`
-	AegisNS              int64                    `json:"aegisNs"`
-	AegisRatio           float64                  `json:"aegisRatio"`
-	AegisPenaltyNS       int64                    `json:"aegisPenaltyNs"`
-	ReplayMeaningful     bool                     `json:"replayMeaningful"`
-	StaticNS             int64                    `json:"staticNs"`
-	StaticVsAegis        float64                  `json:"staticVsAegis"`
-	StaticAdvantageNS    int64                    `json:"staticAdvantageNs"`
-	Classification       string                   `json:"classification"`
-	AllCorrect           bool                     `json:"allCorrect"`
-	Trace                []search.ACBSTraceEvent  `json:"trace"`
-	TraceUpperBoundChunk uint64                   `json:"traceUpperBoundChunk,omitempty"`
+	SourceReport          string                   `json:"sourceReport"`
+	QueryIndex            int                      `json:"queryIndex"`
+	Class                 string                   `json:"class"`
+	SourceID              int64                    `json:"sourceId"`
+	TargetID              int64                    `json:"targetId"`
+	StraightLineMeters    float64                  `json:"straightLineMeters"`
+	DistanceRatio         float64                  `json:"distanceRatio"`
+	OriginalBaseline      search.Algorithm         `json:"originalBaseline"`
+	OriginalRatio         float64                  `json:"originalRatio"`
+	OriginalPenaltyNS     int64                    `json:"originalPenaltyNs"`
+	Algorithms            []ReplayAlgorithmSummary `json:"algorithms"`
+	FastestClassical      search.Algorithm         `json:"fastestClassical"`
+	FastestClassicalNS    int64                    `json:"fastestClassicalNs"`
+	AegisNS               int64                    `json:"aegisNs"`
+	AegisRatio            float64                  `json:"aegisRatio"`
+	AegisPenaltyNS        int64                    `json:"aegisPenaltyNs"`
+	ReplayMeaningful      bool                     `json:"replayMeaningful"`
+	StaticNS              int64                    `json:"staticNs"`
+	StaticVsAegis         float64                  `json:"staticVsAegis"`
+	StaticAdvantageNS     int64                    `json:"staticAdvantageNs"`
+	LateGuardNS           int64                    `json:"lateGuardNs"`
+	LateGuardVsAegis      float64                  `json:"lateGuardVsAegis"`
+	LateGuardAdvantageNS  int64                    `json:"lateGuardAdvantageNs"`
+	LateGuardRegressionNS int64                    `json:"lateGuardRegressionNs"`
+	LateGuardOutcome      string                   `json:"lateGuardOutcome"`
+	Classification        string                   `json:"classification"`
+	AllCorrect            bool                     `json:"allCorrect"`
+	Trace                 []search.ACBSTraceEvent  `json:"trace"`
+	TraceUpperBoundChunk  uint64                   `json:"traceUpperBoundChunk,omitempty"`
 }
 
 type RegretReplayReport struct {
@@ -84,6 +89,10 @@ type RegretReplayReport struct {
 	AdaptiveSchedulerTail int                `json:"adaptiveSchedulerTail"`
 	PersistentClassical   int                `json:"persistentClassical"`
 	NotReproduced         int                `json:"notReproduced"`
+	LateGuardImproved     int                `json:"lateGuardImproved"`
+	LateGuardNeutral      int                `json:"lateGuardNeutral"`
+	LateGuardRegressed    int                `json:"lateGuardRegressed"`
+	LateGuardPass         bool               `json:"lateGuardPass"`
 	AllCorrect            bool               `json:"allCorrect"`
 }
 
@@ -143,13 +152,13 @@ func ReplayRegret(ctx context.Context, g *graph.Graph, validationPath, inputRoot
 	out := RegretReplayReport{
 		Version: "regret-replay-v1", GeneratedAt: time.Now().UTC(), AegisVersion: version.Version,
 		GraphName: g.Name, Metric: string(g.Metric), ValidationPath: validationPath,
-		Config: cfg, RequestedCases: len(rows), AllCorrect: true,
+		Config: cfg, RequestedCases: len(rows), AllCorrect: true, LateGuardPass: true,
 	}
 	if len(rows) == 0 {
 		return out, nil
 	}
 
-	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.AegisStatic, search.Aegis}
+	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.AegisStatic, search.AegisLateGuard, search.Aegis}
 	for caseIndex, top := range rows {
 		reportPath := filepath.Join(absRoot, filepath.FromSlash(top.Path))
 		sourceReport, err := LoadReport(reportPath)
@@ -192,6 +201,20 @@ func ReplayRegret(ctx context.Context, g *graph.Graph, validationPath, inputRoot
 			out.PersistentClassical++
 		case "not-reproduced":
 			out.NotReproduced++
+		}
+		switch caseReport.LateGuardOutcome {
+		case "improved":
+			out.LateGuardImproved++
+		case "regressed":
+			out.LateGuardRegressed++
+		default:
+			out.LateGuardNeutral++
+		}
+		if caseReport.Classification == "adaptive-scheduler-tail" && caseReport.LateGuardOutcome != "improved" {
+			out.LateGuardPass = false
+		}
+		if caseReport.LateGuardRegressionNS >= cfg.PenaltyFloorNS {
+			out.LateGuardPass = false
 		}
 	}
 	return out, nil
@@ -271,8 +294,10 @@ func replayOneCase(ctx context.Context, g *graph.Graph, q Query, algs []search.A
 	}
 	aegis := summaries[search.Aegis]
 	static := summaries[search.AegisStatic]
+	lateGuard := summaries[search.AegisLateGuard]
 	out.AegisNS = aegis.MedianNS
 	out.StaticNS = static.MedianNS
+	out.LateGuardNS = lateGuard.MedianNS
 	if out.FastestClassicalNS > 0 && out.AegisNS > 0 {
 		out.AegisRatio = float64(out.AegisNS) / float64(out.FastestClassicalNS)
 		out.AegisPenaltyNS = out.AegisNS - out.FastestClassicalNS
@@ -285,6 +310,26 @@ func replayOneCase(ctx context.Context, g *graph.Graph, q Query, algs []search.A
 		out.StaticAdvantageNS = out.AegisNS - out.StaticNS
 		if out.StaticAdvantageNS < 0 {
 			out.StaticAdvantageNS = 0
+		}
+	}
+	if out.AegisNS > 0 && out.LateGuardNS > 0 {
+		out.LateGuardVsAegis = float64(out.LateGuardNS) / float64(out.AegisNS)
+		out.LateGuardAdvantageNS = out.AegisNS - out.LateGuardNS
+		if out.LateGuardAdvantageNS < 0 {
+			out.LateGuardRegressionNS = -out.LateGuardAdvantageNS
+			out.LateGuardAdvantageNS = 0
+		}
+		guardFloor := cfg.PenaltyFloorNS / 2
+		if guardFloor < int64(250*time.Microsecond) {
+			guardFloor = int64(250 * time.Microsecond)
+		}
+		switch {
+		case out.LateGuardAdvantageNS >= guardFloor:
+			out.LateGuardOutcome = "improved"
+		case out.LateGuardRegressionNS >= cfg.PenaltyFloorNS:
+			out.LateGuardOutcome = "regressed"
+		default:
+			out.LateGuardOutcome = "neutral"
 		}
 	}
 	out.ReplayMeaningful = out.AegisRatio >= cfg.RatioThreshold && out.AegisPenaltyNS >= cfg.PenaltyFloorNS
@@ -344,7 +389,7 @@ func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
 	defer f.Close()
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	if err := w.Write([]string{"source_report", "query_index", "class", "source_id", "target_id", "distance_km", "original_baseline", "original_ratio", "original_penalty_ms", "replay_baseline", "aegis_median_ms", "baseline_median_ms", "replay_ratio", "replay_penalty_ms", "static_median_ms", "static_vs_aegis", "classification", "trace_chunks", "upper_bound_chunk", "all_correct"}); err != nil {
+	if err := w.Write([]string{"source_report", "query_index", "class", "source_id", "target_id", "distance_km", "original_baseline", "original_ratio", "original_penalty_ms", "replay_baseline", "aegis_median_ms", "baseline_median_ms", "replay_ratio", "replay_penalty_ms", "static_median_ms", "static_vs_aegis", "late_guard_median_ms", "late_guard_vs_aegis", "late_guard_advantage_ms", "late_guard_regression_ms", "late_guard_outcome", "classification", "trace_chunks", "upper_bound_chunk", "all_correct"}); err != nil {
 		return err
 	}
 	for _, c := range report.Cases {
@@ -352,7 +397,7 @@ func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
 			c.SourceReport, strconv.Itoa(c.QueryIndex), c.Class, strconv.FormatInt(c.SourceID, 10), strconv.FormatInt(c.TargetID, 10),
 			fmt.Sprintf("%.6f", c.StraightLineMeters/1000), string(c.OriginalBaseline), fmt.Sprintf("%.6f", c.OriginalRatio), fmt.Sprintf("%.6f", float64(c.OriginalPenaltyNS)/1e6),
 			string(c.FastestClassical), fmt.Sprintf("%.6f", float64(c.AegisNS)/1e6), fmt.Sprintf("%.6f", float64(c.FastestClassicalNS)/1e6), fmt.Sprintf("%.6f", c.AegisRatio), fmt.Sprintf("%.6f", float64(c.AegisPenaltyNS)/1e6),
-			fmt.Sprintf("%.6f", float64(c.StaticNS)/1e6), fmt.Sprintf("%.6f", c.StaticVsAegis), c.Classification, strconv.Itoa(len(c.Trace)), strconv.FormatUint(c.TraceUpperBoundChunk, 10), strconv.FormatBool(c.AllCorrect),
+			fmt.Sprintf("%.6f", float64(c.StaticNS)/1e6), fmt.Sprintf("%.6f", c.StaticVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardNS)/1e6), fmt.Sprintf("%.6f", c.LateGuardVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardAdvantageNS)/1e6), fmt.Sprintf("%.6f", float64(c.LateGuardRegressionNS)/1e6), c.LateGuardOutcome, c.Classification, strconv.Itoa(len(c.Trace)), strconv.FormatUint(c.TraceUpperBoundChunk, 10), strconv.FormatBool(c.AllCorrect),
 		}
 		if err := w.Write(record); err != nil {
 			return err

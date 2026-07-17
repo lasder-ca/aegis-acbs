@@ -29,3 +29,9 @@ jobs:
           go-version: '1.23.x'
           cache: true
       - run: go test -race ./...
+  release-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n scripts/build-release.sh scripts/publish-github.sh scripts/validate-v011-release.sh
+      - run: python3 -m py_compile scripts/check-v011-release-gate.py

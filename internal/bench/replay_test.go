@@ -48,7 +48,7 @@ func TestReplayRegretRemeasuresAndTracesValidationCase(t *testing.T) {
 		t.Fatalf("unexpected replay: %+v", got)
 	}
 	c := got.Cases[0]
-	if len(c.Algorithms) != 5 || len(c.Trace) == 0 || c.SourceID != g.Nodes[0].ID || c.TargetID != g.Nodes[len(g.Nodes)-1].ID {
+	if len(c.Algorithms) != 6 || len(c.Trace) == 0 || c.SourceID != g.Nodes[0].ID || c.TargetID != g.Nodes[len(g.Nodes)-1].ID {
 		t.Fatalf("incomplete replay case: %+v", c)
 	}
 }

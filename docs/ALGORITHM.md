@@ -176,3 +176,18 @@ After conservative scaling and integer truncation, both reduced edge directions 
 ## v0.7 ablation isolation
 
 The production and static variants now share the same chord potential, radix queues, CSR graph, coupled termination test, and no incumbent-pruning pass. Therefore `aegis` versus `aegis-static` isolates only the direction scheduler. `aegis-prune` and `aegis-projection` are deliberately excluded from the default research set because they change separate mechanisms.
+
+## Experimental late-upper-bound guard (v0.11)
+
+`aegis-late-guard` is not part of the default ACBS algorithm. It is a bounded scheduler experiment for the single reproduced case where the adaptive scheduler found the first upper bound at the penultimate chunk and static scheduling was materially faster.
+
+The guard is eligible only when all of the following hold:
+
+- the graph metric is travel time;
+- at least 48 chunks have completed;
+- no finite upper bound has been discovered;
+- both frontier-efficiency estimates have been sampled;
+- at least half of completed chunks caused a direction switch;
+- the two efficiency estimates differ by no more than 25%.
+
+When eligible, the search uses the static lower-key scheduler and base edge budget for at most eight chunks. It does not change reduced costs, the incumbent, the coupled lower bound, or the stopping condition, so exactness is unchanged. The experiment remains separate from `aegis` until the release gates in `docs/RELEASE_PLAN.md` pass.

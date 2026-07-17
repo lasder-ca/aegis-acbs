@@ -11,6 +11,9 @@ const (
 	acbsSchedulerVersion    = "edge-efficiency-v3"
 	acbsChordPotentialModel = "balanced-chord-v3"
 	acbsProjectionModel     = "balanced-projection-v1"
+	acbsLateGuardScheduler  = "edge-efficiency-v3-late-upper-bound-guard-v1"
+	acbsLateGuardStartChunk = uint64(48)
+	acbsLateGuardWindow     = 8
 )
 
 type acbsOptions struct {
@@ -18,6 +21,7 @@ type acbsOptions struct {
 	adaptive   bool
 	pruning    bool
 	projection bool
+	lateGuard  bool
 }
 
 func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
@@ -26,6 +30,10 @@ func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, erro
 	// path therefore keeps the exact coupled-bound termination rule but does
 	// not run the optional per-node incumbent pruning experiment.
 	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: Aegis, adaptive: true, pruning: false})
+}
+
+func acbsLateGuard(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisLateGuard, adaptive: true, pruning: false, lateGuard: true})
 }
 
 func acbsStatic(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
@@ -102,6 +110,9 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 	best, meet := inf, -1
 	bestReduced := inf
 	trace := acbsTraceFromContext(ctx)
+	lateGuardEligible := opts.lateGuard && lateUpperBoundGuardEligible(g, source, target)
+	lateGuardRemaining := 0
+	lateGuardTriggered := false
 	var scoreF, scoreB uint64
 	var sampledF, sampledB bool
 	lastDirection := byte(0)
@@ -131,8 +142,22 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 			}
 		}
 
+		guardTriggeredNow := false
+		if lateGuardEligible && !lateGuardTriggered && bestReduced == inf && shouldEngageLateUpperBoundGuard(
+			stats.Chunks, stats.DirectionSwitches, scoreF, scoreB, sampledF, sampledB,
+		) {
+			lateGuardRemaining = acbsLateGuardWindow
+			lateGuardTriggered = true
+			guardTriggeredNow = true
+			stats.LateGuardActivations++
+			stats.LateGuardFirstChunk = stats.Chunks + 1
+		}
+		lateGuardActive := lateGuardRemaining > 0 && bestReduced == inf
+
 		direction := byte(0)
-		if opts.adaptive {
+		if lateGuardActive {
+			direction = chooseACBSStaticDirection(g, frontF, frontB, qf.Len(), qb.Len())
+		} else if opts.adaptive {
 			direction = chooseACBSDirection(
 				g, frontF, frontB, qf.Len(), qb.Len(), scoreF, scoreB,
 				sampledF, sampledB, lastDirection, consecutive,
@@ -151,8 +176,11 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 		}
 
 		budget := acbsEdgeBudget(g.EdgeCount, scoreF, scoreB, direction, bestReduced != inf)
-		if !opts.adaptive {
+		if !opts.adaptive || lateGuardActive {
 			budget = acbsBaseEdgeBudget(g.EdgeCount)
+		}
+		if lateGuardActive {
+			stats.LateGuardChunks++
 		}
 		beforeLB := lowerBound
 		beforeRelaxed := stats.Relaxed
@@ -336,6 +364,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				ForwardScoreAfter:   float64(scoreF) / 1_000_000.0,
 				BackwardScoreAfter:  float64(scoreB) / 1_000_000.0,
 				HadUpperBoundBefore: beforeBest != inf, HadUpperBoundAfter: best != inf,
+				LateGuardActive: lateGuardActive, LateGuardTriggered: guardTriggeredNow,
 			}
 			if beforeBest != inf {
 				event.UpperBoundBefore = beforeBest
@@ -344,6 +373,9 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				event.UpperBoundAfter = best
 			}
 			trace(event)
+		}
+		if lateGuardActive && lateGuardRemaining > 0 {
+			lateGuardRemaining--
 		}
 	}
 
@@ -517,6 +549,9 @@ func peekValid(q *radixHeap, dist []uint64, settled []bool, stats *Stats) (item,
 }
 
 func schedulerName(opts acbsOptions) string {
+	if opts.lateGuard {
+		return acbsLateGuardScheduler
+	}
 	if !opts.adaptive {
 		return "lower-key-static-v2"
 	}
@@ -524,6 +559,29 @@ func schedulerName(opts acbsOptions) string {
 		return acbsSchedulerVersion + "-incumbent-prune"
 	}
 	return acbsSchedulerVersion
+}
+
+func lateUpperBoundGuardEligible(g *graph.Graph, source, target int) bool {
+	_ = source
+	_ = target
+	return g.Metric == graph.MetricTime
+}
+
+func shouldEngageLateUpperBoundGuard(chunks, switches, scoreF, scoreB uint64, sampledF, sampledB bool) bool {
+	if chunks < acbsLateGuardStartChunk || !sampledF || !sampledB || scoreF == 0 || scoreB == 0 {
+		return false
+	}
+	// Trigger only on long, oscillating searches whose two measured frontier
+	// efficiencies remain close. This targets the reproduced late-upper-bound
+	// scheduler tail without changing ordinary or clearly one-sided searches.
+	if switches*2 < chunks {
+		return false
+	}
+	hi, lo := scoreF, scoreB
+	if hi < lo {
+		hi, lo = lo, hi
+	}
+	return hi <= lo+lo/4
 }
 
 func chooseACBSStaticDirection(g *graph.Graph, frontF, frontB item, lenF, lenB int) byte {

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.11.0-experimental
+
+- Added the opt-in `aegis-late-guard` ACBS variant for reproduced late-upper-bound scheduler tails.
+- The guard can activate only on travel-time routes after 48 completed chunks, before any upper bound, when direction switching is frequent and forward/backward efficiency estimates remain close.
+- The guard uses the static lower-key direction rule and base edge budget for at most eight chunks, then returns to the normal adaptive scheduler.
+- Added late-guard activation counters and chunk-level trace markers.
+- Extended `replay-regret` to measure the guard beside adaptive and static ACBS, report improvement/regression, and emit a release-gate verdict.
+- Added exactness and activation-scope tests for long time routes, distance routes, and short time routes.
+- Added a machine-readable v0.11 release-gate script and a staged GitHub publication plan.
+- Kept the default `aegis` algorithm unchanged until the Tokyo replay and 10,000-query release gates pass.
+
 ## v0.10.0-experimental
 
 - Added `aegis replay-regret` to isolate and repeatedly remeasure meaningful tail cases retained by `validate-regret`.

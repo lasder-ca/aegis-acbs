@@ -41,7 +41,7 @@ func TestBidirectionalAlgorithmsMatchDijkstraExhaustiveSmallDirected(t *testing.
 					if err != nil {
 						t.Fatal(err)
 					}
-					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune} {
+					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisLateGuard, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune} {
 						b, err := Run(ctx, g, s, d, alg)
 						if err != nil {
 							t.Fatal(err)
@@ -83,7 +83,7 @@ func TestAStarAndAegisMatchDijkstraRoadLike(t *testing.T) {
 		for q := 0; q < 30; q++ {
 			s, d := rnd.Intn(n), rnd.Intn(n)
 			a, _ := Run(ctx, g, s, d, Dijkstra)
-			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
+			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisLateGuard, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
 				b, err := Run(ctx, g, s, d, alg)
 				if err != nil {
 					t.Fatal(err)
@@ -414,5 +414,58 @@ func TestACBSTraceRecordsSchedulerChunksWithoutChangingResult(t *testing.T) {
 		if event.AfterLowerBound < event.BeforeLowerBound {
 			t.Fatalf("lower bound regressed: %+v", event)
 		}
+	}
+}
+
+func TestACBSLateGuardActivatesOnlyForLateTimeSearches(t *testing.T) {
+	ctx := context.Background()
+	timeGraph := gridGraph(t, 180, 180, true)
+	timeGraph.Metric = graph.MetricTime
+	guarded, err := Run(ctx, timeGraph, 0, len(timeGraph.Nodes)-1, AegisLateGuard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := Run(ctx, timeGraph, 0, len(timeGraph.Nodes)-1, Dijkstra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if guarded.Stats.Distance != want.Stats.Distance || !Validate(timeGraph, 0, len(timeGraph.Nodes)-1, guarded) {
+		t.Fatalf("late guard changed exact result: want=%+v got=%+v", want.Stats, guarded.Stats)
+	}
+	if guarded.Stats.LateGuardActivations != 1 || guarded.Stats.LateGuardChunks == 0 || guarded.Stats.LateGuardFirstChunk < acbsLateGuardStartChunk+1 {
+		t.Fatalf("expected one late guard activation, got %+v", guarded.Stats)
+	}
+
+	distanceGraph := gridGraph(t, 180, 180, true)
+	plain, err := Run(ctx, distanceGraph, 0, len(distanceGraph.Nodes)-1, AegisLateGuard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Stats.LateGuardActivations != 0 || plain.Stats.LateGuardChunks != 0 {
+		t.Fatalf("distance metric must not activate time-tail guard: %+v", plain.Stats)
+	}
+
+	shortTarget := 8*180 + 8
+	short, err := Run(ctx, timeGraph, 0, shortTarget, AegisLateGuard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if short.Stats.LateGuardActivations != 0 {
+		t.Fatalf("short time route must not activate late guard: %+v", short.Stats)
+	}
+}
+
+func TestLateUpperBoundGuardRequiresOscillationAndAmbiguousScores(t *testing.T) {
+	if shouldEngageLateUpperBoundGuard(47, 47, 100, 100, true, true) {
+		t.Fatal("guard activated before threshold")
+	}
+	if shouldEngageLateUpperBoundGuard(48, 10, 100, 100, true, true) {
+		t.Fatal("guard activated without enough direction oscillation")
+	}
+	if shouldEngageLateUpperBoundGuard(48, 30, 200, 100, true, true) {
+		t.Fatal("guard activated with a clear efficiency winner")
+	}
+	if !shouldEngageLateUpperBoundGuard(48, 30, 120, 100, true, true) {
+		t.Fatal("guard did not activate for a late ambiguous oscillating search")
 	}
 }

@@ -26,6 +26,8 @@ type ACBSTraceEvent struct {
 	HadUpperBoundAfter  bool    `json:"hadUpperBoundAfter"`
 	UpperBoundBefore    uint64  `json:"upperBoundBefore,omitempty"`
 	UpperBoundAfter     uint64  `json:"upperBoundAfter,omitempty"`
+	LateGuardActive     bool    `json:"lateGuardActive,omitempty"`
+	LateGuardTriggered  bool    `json:"lateGuardTriggered,omitempty"`
 }
 
 type acbsTraceKey struct{}

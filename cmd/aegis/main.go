@@ -243,7 +243,7 @@ func benchmark(args []string) error {
 		}
 		list = append(list, search.AegisStatic)
 		if *experimental {
-			list = append(list, search.AegisPrune, search.AegisProjection)
+			list = append(list, search.AegisLateGuard, search.AegisPrune, search.AegisProjection)
 		}
 		list = append(list, search.Aegis)
 	}
@@ -494,11 +494,11 @@ func replayRegret(args []string) error {
 			return err
 		}
 	}
-	fmt.Printf("replay         requested=%d replayed=%d reproduced=%d scheduler-tail=%d persistent=%d not-reproduced=%d correct=%v\n",
-		report.RequestedCases, report.ReplayedCases, report.ReproducedMeaningful, report.AdaptiveSchedulerTail, report.PersistentClassical, report.NotReproduced, report.AllCorrect)
+	fmt.Printf("replay         requested=%d replayed=%d reproduced=%d scheduler-tail=%d persistent=%d not-reproduced=%d guard(improved/neutral/regressed)=%d/%d/%d guard-pass=%v correct=%v\n",
+		report.RequestedCases, report.ReplayedCases, report.ReproducedMeaningful, report.AdaptiveSchedulerTail, report.PersistentClassical, report.NotReproduced, report.LateGuardImproved, report.LateGuardNeutral, report.LateGuardRegressed, report.LateGuardPass, report.AllCorrect)
 	for _, c := range report.Cases {
-		fmt.Printf("case           run=%s query=%d class=%s original=%.3fx/%.3fms replay=%s %.3fx/%.3fms static=%.3fms classification=%s chunks=%d upper-chunk=%d\n",
-			c.SourceReport, c.QueryIndex, c.Class, c.OriginalRatio, float64(c.OriginalPenaltyNS)/1e6, c.FastestClassical, c.AegisRatio, float64(c.AegisPenaltyNS)/1e6, float64(c.StaticNS)/1e6, c.Classification, len(c.Trace), c.TraceUpperBoundChunk)
+		fmt.Printf("case           run=%s query=%d class=%s original=%.3fx/%.3fms replay=%s %.3fx/%.3fms static=%.3fms guard=%.3fms(%s) classification=%s chunks=%d upper-chunk=%d\n",
+			c.SourceReport, c.QueryIndex, c.Class, c.OriginalRatio, float64(c.OriginalPenaltyNS)/1e6, c.FastestClassical, c.AegisRatio, float64(c.AegisPenaltyNS)/1e6, float64(c.StaticNS)/1e6, float64(c.LateGuardNS)/1e6, c.LateGuardOutcome, c.Classification, len(c.Trace), c.TraceUpperBoundChunk)
 	}
 	fmt.Println("replay report:", *output)
 	if *csvOut != "" {

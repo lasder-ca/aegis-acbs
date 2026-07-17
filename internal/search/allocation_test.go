@@ -40,11 +40,15 @@ func TestACBSSteadyStateAllocationsRemainBounded(t *testing.T) {
 			t.Fatalf("ACBS failed: reachable=%v err=%v", r.Stats.Reachable, err)
 		}
 	})
-	// One exact-sized path slice is expected. Leave a bounded margin for the
-	// race detector's context/value instrumentation while still preventing
-	// priority-queue backing-array allocation regressions.
-	if allocations > 96 {
-		t.Fatalf("steady-state ACBS allocations too high: %.2f", allocations)
+	// One exact-sized path slice is expected without instrumentation. The race
+	// detector adds implementation-dependent synchronization allocations, so
+	// keep a separate ceiling while preserving a strict normal-build gate.
+	limit := 8.0
+	if testRaceEnabled {
+		limit = 128
+	}
+	if allocations > limit {
+		t.Fatalf("steady-state ACBS allocations too high: %.2f (limit %.0f, race=%v)", allocations, limit, testRaceEnabled)
 	}
 }
 

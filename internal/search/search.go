@@ -18,6 +18,7 @@ const (
 	AStar           Algorithm = "astar"
 	Aegis           Algorithm = "aegis"
 	AegisStatic     Algorithm = "aegis-static"
+	AegisLateGuard  Algorithm = "aegis-late-guard"
 	AegisPrune      Algorithm = "aegis-prune"
 	AegisNoPrune    Algorithm = "aegis-no-prune" // deprecated compatibility alias for aegis
 	AegisProjection Algorithm = "aegis-projection"
@@ -61,6 +62,9 @@ type Stats struct {
 	ForwardExpanded         uint64    `json:"forwardExpanded,omitempty"`
 	BackwardExpanded        uint64    `json:"backwardExpanded,omitempty"`
 	DirectionSwitches       uint64    `json:"directionSwitches,omitempty"`
+	LateGuardActivations    uint64    `json:"lateGuardActivations,omitempty"`
+	LateGuardChunks         uint64    `json:"lateGuardChunks,omitempty"`
+	LateGuardFirstChunk     uint64    `json:"lateGuardFirstChunk,omitempty"`
 	Chunks                  uint64    `json:"chunks,omitempty"`
 	FirstUpperBoundExpanded uint64    `json:"firstUpperBoundExpanded,omitempty"`
 	TerminationLowerBound   uint64    `json:"terminationLowerBound,omitempty"`
@@ -110,6 +114,8 @@ func Run(ctx context.Context, g *graph.Graph, source, target int, alg Algorithm)
 		r, err = acbs(ctx, g, source, target)
 	case AegisStatic:
 		r, err = acbsStatic(ctx, g, source, target)
+	case AegisLateGuard:
+		r, err = acbsLateGuard(ctx, g, source, target)
 	case AegisPrune:
 		r, err = acbsPrune(ctx, g, source, target)
 	case AegisNoPrune:
