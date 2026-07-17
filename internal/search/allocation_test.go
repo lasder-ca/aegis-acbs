@@ -62,3 +62,35 @@ func BenchmarkACBSLargeGrid(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkACBSProjectionLargeGrid(b *testing.B) {
+	g := gridGraph(b, 180, 180, true)
+	ctx := context.Background()
+	if _, err := Run(ctx, g, 0, len(g.Nodes)-1, AegisProjection); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r, err := Run(ctx, g, 0, len(g.Nodes)-1, AegisProjection)
+		if err != nil || !r.Stats.Reachable {
+			b.Fatalf("ACBS projection failed: reachable=%v err=%v", r.Stats.Reachable, err)
+		}
+	}
+}
+
+func TestRadixHeapMonotoneOrdering(t *testing.T) {
+	rng := rand.New(rand.NewSource(6060))
+	var h radixHeap
+	for i := 0; i < 20_000; i++ {
+		radixPush(&h, item{node: i, priority: uint64(rng.Intn(1_000_000)), distance: uint64(i)})
+	}
+	var previous uint64
+	for h.Len() > 0 {
+		current := radixPop(&h)
+		if current.priority < previous {
+			t.Fatalf("radix order regressed: previous=%d current=%d", previous, current.priority)
+		}
+		previous = current.priority
+	}
+}

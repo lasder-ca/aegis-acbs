@@ -53,14 +53,14 @@ func releaseSingleWorkspace(w *singleWorkspace) {
 
 type biWorkspace struct {
 	df, db              []uint64
-	pf, pb              []int
+	pf, pb              []int32
 	settledF, settledB  []bool
 	phi                 []int64
 	hForward, hBackward []uint64
-	phiKnown            []bool
-	touchedF, touchedB  []int
-	touchedPhi          []int
-	qf, qb              minHeap
+	phiKnown, hKnown    []bool
+	touchedF, touchedB  []int32
+	touchedPhi          []int32
+	qf, qb              radixHeap
 }
 
 var biWorkspacePool = sync.Pool{
@@ -72,14 +72,15 @@ func acquireBiWorkspace(n int) *biWorkspace {
 	if cap(w.df) < n {
 		w.df = make([]uint64, n)
 		w.db = make([]uint64, n)
-		w.pf = make([]int, n)
-		w.pb = make([]int, n)
+		w.pf = make([]int32, n)
+		w.pb = make([]int32, n)
 		w.settledF = make([]bool, n)
 		w.settledB = make([]bool, n)
 		w.phi = make([]int64, n)
 		w.hForward = make([]uint64, n)
 		w.hBackward = make([]uint64, n)
 		w.phiKnown = make([]bool, n)
+		w.hKnown = make([]bool, n)
 		for i := range w.df {
 			w.df[i], w.db[i] = inf, inf
 			w.pf[i], w.pb[i] = -1, -1
@@ -95,66 +96,80 @@ func acquireBiWorkspace(n int) *biWorkspace {
 		w.hForward = w.hForward[:n]
 		w.hBackward = w.hBackward[:n]
 		w.phiKnown = w.phiKnown[:n]
+		w.hKnown = w.hKnown[:n]
 	}
 	w.touchedF = w.touchedF[:0]
 	w.touchedB = w.touchedB[:0]
 	w.touchedPhi = w.touchedPhi[:0]
-	w.qf = w.qf[:0]
-	w.qb = w.qb[:0]
+	w.qf.reset()
+	w.qb.reset()
 	return w
 }
 
 func (w *biWorkspace) touchForward(v int) {
 	if w.df[v] == inf {
-		w.touchedF = append(w.touchedF, v)
+		w.touchedF = append(w.touchedF, int32(v))
 	}
 }
 
 func (w *biWorkspace) touchBackward(v int) {
 	if w.db[v] == inf {
-		w.touchedB = append(w.touchedB, v)
+		w.touchedB = append(w.touchedB, int32(v))
 	}
 }
 
-func (w *biWorkspace) potentialBounds(g *graph.Graph, model acbsPotential, v int) (forward, backward uint64, phi int64, fresh bool) {
+func (w *biWorkspace) potential(g *graph.Graph, model acbsPotential, v int) (phi int64, fresh bool) {
 	if w.phiKnown[v] {
-		return w.hForward[v], w.hBackward[v], w.phi[v], false
+		return w.phi[v], false
 	}
-	forward, backward, phi = model.bounds(g, v)
-	w.hForward[v] = forward
-	w.hBackward[v] = backward
+	phi = model.phi(g, v)
 	w.phi[v] = phi
 	w.phiKnown[v] = true
-	w.touchedPhi = append(w.touchedPhi, v)
-	return forward, backward, phi, true
+	w.touchedPhi = append(w.touchedPhi, int32(v))
+	return phi, true
 }
 
-func (w *biWorkspace) potential(g *graph.Graph, model acbsPotential, v int) int64 {
-	_, _, phi, _ := w.potentialBounds(g, model, v)
-	return phi
+func (w *biWorkspace) heuristicBounds(g *graph.Graph, model acbsPotential, v int) (forward, backward uint64, fresh bool) {
+	if w.hKnown[v] {
+		return w.hForward[v], w.hBackward[v], false
+	}
+	forward, backward = model.bounds(g, v)
+	w.hForward[v] = forward
+	w.hBackward[v] = backward
+	w.hKnown[v] = true
+	if !w.phiKnown[v] {
+		w.phi[v] = model.phi(g, v)
+		w.phiKnown[v] = true
+		w.touchedPhi = append(w.touchedPhi, int32(v))
+	}
+	return forward, backward, true
 }
 
 func releaseBiWorkspace(w *biWorkspace) {
-	for _, v := range w.touchedF {
+	for _, raw := range w.touchedF {
+		v := int(raw)
 		w.df[v] = inf
 		w.pf[v] = -1
 		w.settledF[v] = false
 	}
-	for _, v := range w.touchedB {
+	for _, raw := range w.touchedB {
+		v := int(raw)
 		w.db[v] = inf
 		w.pb[v] = -1
 		w.settledB[v] = false
 	}
-	for _, v := range w.touchedPhi {
+	for _, raw := range w.touchedPhi {
+		v := int(raw)
 		w.phi[v] = 0
 		w.hForward[v] = 0
 		w.hBackward[v] = 0
 		w.phiKnown[v] = false
+		w.hKnown[v] = false
 	}
 	w.touchedF = w.touchedF[:0]
 	w.touchedB = w.touchedB[:0]
 	w.touchedPhi = w.touchedPhi[:0]
-	w.qf = w.qf[:0]
-	w.qb = w.qb[:0]
+	w.qf.reset()
+	w.qb.reset()
 	biWorkspacePool.Put(w)
 }

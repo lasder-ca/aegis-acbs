@@ -228,7 +228,7 @@ func benchmark(args []string) error {
 		if g.MinCostPerMeter > 0 {
 			list = append(list, search.AStar)
 		}
-		list = append(list, search.AegisStatic, search.AegisNoPrune, search.Aegis)
+		list = append(list, search.AegisStatic, search.AegisNoPrune, search.AegisProjection, search.Aegis)
 	}
 	report, err := bench.Run(context.Background(), g, bench.Config{Queries: *queries, Seed: *seed, Algorithms: list, Warmup: 3, Repeats: *repeats, BatchSize: *batchSize, Order: *order, MeasureMemory: *measureMemory, Timeout: *timeout, Suite: *suite, PairMode: *pairMode})
 	if err != nil {

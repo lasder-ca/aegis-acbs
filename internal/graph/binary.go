@@ -50,7 +50,8 @@ func Save(path string, g *Graph) error {
 			return err
 		}
 	}
-	for _, edges := range g.Adj {
+	for i := range g.Nodes {
+		edges := g.OutEdges(i)
 		if err := binary.Write(w, binary.LittleEndian, uint32(len(edges))); err != nil {
 			return err
 		}

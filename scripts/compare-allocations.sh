@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OLD_TAG="${OLD_TAG:-v0.4.0-experimental}"
+OLD_TAG="${OLD_TAG:-v0.5.0-experimental}"
 OUT="${1:-$ROOT/artifacts/allocation-comparison}"
 BENCHTIME="${BENCHTIME:-20x}"
 COUNT="${COUNT:-3}"

@@ -41,7 +41,7 @@ func TestBidirectionalAlgorithmsMatchDijkstraExhaustiveSmallDirected(t *testing.
 					if err != nil {
 						t.Fatal(err)
 					}
-					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisStatic, AegisNoPrune} {
+					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisProjection, AegisStatic, AegisNoPrune} {
 						b, err := Run(ctx, g, s, d, alg)
 						if err != nil {
 							t.Fatal(err)
@@ -83,7 +83,7 @@ func TestAStarAndAegisMatchDijkstraRoadLike(t *testing.T) {
 		for q := 0; q < 30; q++ {
 			s, d := rnd.Intn(n), rnd.Intn(n)
 			a, _ := Run(ctx, g, s, d, Dijkstra)
-			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisStatic, AegisNoPrune, AegisRace} {
+			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
 				b, err := Run(ctx, g, s, d, alg)
 				if err != nil {
 					t.Fatal(err)
@@ -214,22 +214,25 @@ func TestACBSUsesBothDirectionsOnLargeGrid(t *testing.T) {
 	}
 }
 
-func TestACBSBalancedPotentialHasNonnegativeReducedEdges(t *testing.T) {
+func TestACBSBalancedPotentialsHaveNonnegativeReducedEdges(t *testing.T) {
 	g := gridGraph(t, 40, 40, true)
-	w := acquireBiWorkspace(len(g.Nodes))
-	defer releaseBiWorkspace(w)
 	source, target := 0, len(g.Nodes)-1
-	potential := newACBSPotential(g, source, target)
-	for from, edges := range g.Adj {
-		phiFrom := w.potential(g, potential, from)
-		for _, e := range edges {
-			phiTo := w.potential(g, potential, e.To)
-			forward := int64(2*e.Cost) + phiTo - phiFrom
-			backward := int64(2*e.Cost) + phiFrom - phiTo
-			if forward < 0 || backward < 0 {
-				t.Fatalf("negative reduced edge %d->%d: forward=%d backward=%d", from, e.To, forward, backward)
+	for _, projection := range []bool{false, true} {
+		w := acquireBiWorkspace(len(g.Nodes))
+		potential := newACBSPotential(g, source, target, projection)
+		for from := range g.Nodes {
+			edges := g.OutEdges(from)
+			phiFrom, _ := w.potential(g, potential, from)
+			for _, e := range edges {
+				phiTo, _ := w.potential(g, potential, e.To)
+				forward := int64(2*e.Cost) + phiTo - phiFrom
+				backward := int64(2*e.Cost) + phiFrom - phiTo
+				if forward < 0 || backward < 0 {
+					t.Fatalf("projection=%v negative reduced edge %d->%d: forward=%d backward=%d", projection, from, e.To, forward, backward)
+				}
 			}
 		}
+		releaseBiWorkspace(w)
 	}
 }
 
@@ -260,7 +263,7 @@ func TestACBSReturnsZeroGapCertificateAndPrunes(t *testing.T) {
 	if r.Stats.UpperBound != r.Stats.Distance || r.Stats.LowerBound != r.Stats.Distance || r.Stats.OptimalityGap != 0 {
 		t.Fatalf("invalid optimality certificate: %+v", r.Stats)
 	}
-	if r.Stats.PotentialModel != acbsPotentialModel || r.Stats.SchedulerVersion != acbsSchedulerVersion {
+	if r.Stats.PotentialModel != acbsChordPotentialModel || r.Stats.SchedulerVersion != acbsSchedulerVersion {
 		t.Fatalf("missing algorithm metadata: %+v", r.Stats)
 	}
 	if r.Stats.PotentialEvaluations == 0 || r.Stats.UpperBoundUpdates == 0 {

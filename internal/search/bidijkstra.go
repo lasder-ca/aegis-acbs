@@ -21,8 +21,8 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 	w.touchBackward(target)
 	df[source], db[target] = 0, 0
 	qf, qb := &w.qf, &w.qb
-	push(qf, item{node: source, distance: 0, priority: 0})
-	push(qb, item{node: target, distance: 0, priority: 0})
+	radixPush(qf, item{node: source, distance: 0, priority: 0})
+	radixPush(qb, item{node: target, distance: 0, priority: 0})
 	best, meet := inf, -1
 	stats := Stats{Algorithm: BiDijkstra, QueuePushes: 2}
 	for qf.Len() > 0 && qb.Len() > 0 {
@@ -33,13 +33,15 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 			default:
 			}
 		}
-		minF := (*qf)[0].priority
-		minB := (*qb)[0].priority
+		frontF, _ := radixPeek(qf)
+		frontB, _ := radixPeek(qb)
+		minF := frontF.priority
+		minB := frontB.priority
 		if best != inf && minF <= best && minB <= best && minF >= best-minB {
 			break
 		}
 		if minF <= minB {
-			cur := pop(qf)
+			cur := radixPop(qf)
 			stats.QueuePops++
 			if cur.distance != df[cur.node] || settledF[cur.node] {
 				stats.StalePops++
@@ -51,7 +53,7 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 				best = df[cur.node] + db[cur.node]
 				meet = cur.node
 			}
-			for _, e := range g.Adj[cur.node] {
+			for _, e := range g.OutEdges(cur.node) {
 				stats.Relaxed++
 				if df[cur.node] > inf-e.Cost {
 					continue
@@ -60,8 +62,8 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 				if nd < df[e.To] {
 					w.touchForward(e.To)
 					df[e.To] = nd
-					pf[e.To] = cur.node
-					push(qf, item{node: e.To, distance: nd, priority: nd})
+					pf[e.To] = int32(cur.node)
+					radixPush(qf, item{node: e.To, distance: nd, priority: nd})
 					stats.QueuePushes++
 				}
 				if db[e.To] != inf && nd <= inf-db[e.To] && nd+db[e.To] < best {
@@ -70,7 +72,7 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 				}
 			}
 		} else {
-			cur := pop(qb)
+			cur := radixPop(qb)
 			stats.QueuePops++
 			if cur.distance != db[cur.node] || settledB[cur.node] {
 				stats.StalePops++
@@ -82,7 +84,7 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 				best = df[cur.node] + db[cur.node]
 				meet = cur.node
 			}
-			for _, e := range g.Rev[cur.node] {
+			for _, e := range g.InEdges(cur.node) {
 				stats.Relaxed++
 				if db[cur.node] > inf-e.Cost {
 					continue
@@ -91,8 +93,8 @@ func bidirectionalDijkstra(ctx context.Context, g *graph.Graph, source, target i
 				if nd < db[e.To] {
 					w.touchBackward(e.To)
 					db[e.To] = nd
-					pb[e.To] = cur.node
-					push(qb, item{node: e.To, distance: nd, priority: nd})
+					pb[e.To] = int32(cur.node)
+					radixPush(qb, item{node: e.To, distance: nd, priority: nd})
 					stats.QueuePushes++
 				}
 				if df[e.To] != inf && nd <= inf-df[e.To] && nd+df[e.To] < best {

@@ -121,3 +121,17 @@ scripts/compare-allocations.sh
 ```
 
 The generated grid fixture isolates queue and path allocation behavior. It does not replace the real OSM-derived city matrix for algorithm-performance claims. Queue backing arrays are retained after warm-up, so lower `B/op` and `allocs/op` should be evaluated together with ACBS-only peak RSS.
+
+## v0.6 dual-potential comparison
+
+Compare the stronger chord potential with the cheaper projection potential explicitly:
+
+```bash
+aegis benchmark \
+  --graph city.aegis \
+  --algorithms dijkstra,bidijkstra,astar,aegis,aegis-projection \
+  --order interleaved \
+  --measure-memory
+```
+
+Do not merge the two ACBS variants into a selector for publication results. Report each variant's latency and work counters separately. A projection speedup accompanied by substantially higher expansion counts should be described as an implementation tradeoff rather than a stronger heuristic.

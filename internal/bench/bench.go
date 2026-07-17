@@ -438,8 +438,8 @@ func makePool(g *graph.Graph, mode string) []int {
 		stack := []frame{{root, 0}}
 		for len(stack) > 0 {
 			top := &stack[len(stack)-1]
-			if top.next < len(g.Adj[top.v]) {
-				to := g.Adj[top.v][top.next].To
+			if top.next < g.OutDegree(top.v) {
+				to := g.OutEdges(top.v)[top.next].To
 				top.next++
 				if !seen[to] {
 					seen[to] = true
@@ -469,7 +469,7 @@ func makePool(g *graph.Graph, mode string) []int {
 			v := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			size++
-			for _, e := range g.Rev[v] {
+			for _, e := range g.InEdges(v) {
 				if comp[e.To] < 0 {
 					comp[e.To] = cid
 					stack = append(stack, e.To)

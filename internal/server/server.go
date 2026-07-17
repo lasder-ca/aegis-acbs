@@ -50,8 +50,8 @@ func (a App) meta(w http.ResponseWriter, r *http.Request) {
 
 func suggestedPair(g *graph.Graph) (int64, int64) {
 	start := -1
-	for i, edges := range g.Adj {
-		if len(edges) > 0 {
+	for i := range g.Nodes {
+		if g.OutDegree(i) > 0 {
 			start = i
 			break
 		}
@@ -63,7 +63,7 @@ func suggestedPair(g *graph.Graph) (int64, int64) {
 	seen := map[int]bool{cur: true}
 	for step := 0; step < 32; step++ {
 		next := -1
-		for _, e := range g.Adj[cur] {
+		for _, e := range g.OutEdges(cur) {
 			if !seen[e.To] {
 				next = e.To
 				break

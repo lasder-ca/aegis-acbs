@@ -17,14 +17,16 @@ func lessItem(a, b item) bool {
 	return a.priority < b.priority
 }
 
-// push inserts an item without interface boxing or container/heap overhead.
-// The backing slice is owned by a pooled search workspace and reused between
-// queries, so steady-state routing performs no priority-queue allocations.
+const heapArity = 4
+
+// push inserts an item into a four-ary heap without interface boxing or
+// container/heap overhead. A four-ary heap reduces the number of cache-missing
+// levels visited by pop on the large OPEN lists common in road routing.
 func push(h *minHeap, x item) {
 	*h = append(*h, x)
 	i := len(*h) - 1
 	for i > 0 {
-		parent := (i - 1) / 2
+		parent := (i - 1) / heapArity
 		if !lessItem((*h)[i], (*h)[parent]) {
 			break
 		}
@@ -44,14 +46,16 @@ func pop(h *minHeap) item {
 	}
 	(*h)[0] = last
 	for i := 0; ; {
-		left := i*2 + 1
-		if left >= len(*h) {
+		first := i*heapArity + 1
+		if first >= len(*h) {
 			break
 		}
-		right := left + 1
-		smallest := left
-		if right < len(*h) && lessItem((*h)[right], (*h)[left]) {
-			smallest = right
+		smallest := first
+		limit := min(first+heapArity, len(*h))
+		for child := first + 1; child < limit; child++ {
+			if lessItem((*h)[child], (*h)[smallest]) {
+				smallest = child
+			}
 		}
 		if !lessItem((*h)[smallest], (*h)[i]) {
 			break

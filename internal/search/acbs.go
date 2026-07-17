@@ -8,14 +8,16 @@ import (
 )
 
 const (
-	acbsSchedulerVersion = "edge-efficiency-v2"
-	acbsPotentialModel   = "balanced-chord-v2"
+	acbsSchedulerVersion    = "edge-efficiency-v2"
+	acbsChordPotentialModel = "balanced-chord-v3"
+	acbsProjectionModel     = "balanced-projection-v1"
 )
 
 type acbsOptions struct {
-	algorithm Algorithm
-	adaptive  bool
-	pruning   bool
+	algorithm  Algorithm
+	adaptive   bool
+	pruning    bool
+	projection bool
 }
 
 func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
@@ -30,6 +32,10 @@ func acbsNoPrune(ctx context.Context, g *graph.Graph, source, target int) (Resul
 	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisNoPrune, adaptive: true, pruning: false})
 }
 
+func acbsProjection(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisProjection, adaptive: true, pruning: true, projection: true})
+}
+
 // ACBS implements Aegis Coupled-Bound Search.
 //
 // ACBS is one exact bidirectional search. Both directions run on non-negative
@@ -39,10 +45,14 @@ func acbsNoPrune(ctx context.Context, g *graph.Graph, source, target int) (Resul
 // bound. Once an incumbent exists, admissible per-node bounds safely prune
 // states that cannot improve it.
 func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, opts acbsOptions) (Result, error) {
+	modelName := acbsChordPotentialModel
+	if opts.projection {
+		modelName = acbsProjectionModel
+	}
 	if source == target {
 		return Result{Path: []int{source}, Stats: Stats{
 			Algorithm: opts.algorithm, Reachable: true, PathNodes: 1,
-			SchedulerVersion: schedulerName(opts), PotentialModel: acbsPotentialModel,
+			SchedulerVersion: schedulerName(opts), PotentialModel: modelName,
 		}}, nil
 	}
 
@@ -53,20 +63,20 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 	pf, pb := w.pf, w.pb
 	settledF, settledB := w.settledF, w.settledB
 
-	potential := newACBSPotential(g, source, target)
-	_, _, phiS, freshS := w.potentialBounds(g, potential, source)
-	_, _, phiT, freshT := w.potentialBounds(g, potential, target)
+	potential := newACBSPotential(g, source, target, opts.projection)
+	phiS, freshS := w.potential(g, potential, source)
+	phiT, freshT := w.potential(g, potential, target)
 
 	w.touchForward(source)
 	w.touchBackward(target)
 	df[source], db[target] = 0, 0
 	qf, qb := &w.qf, &w.qb
-	push(qf, item{node: source, distance: 0, priority: reducedForwardKey(0, phiS, phiS)})
-	push(qb, item{node: target, distance: 0, priority: reducedBackwardKey(0, phiT, phiT)})
+	radixPush(qf, item{node: source, distance: 0, priority: reducedForwardKey(0, phiS, phiS)})
+	radixPush(qb, item{node: target, distance: 0, priority: reducedBackwardKey(0, phiT, phiT)})
 
 	stats := Stats{
 		Algorithm: opts.algorithm, QueuePushes: 2,
-		SchedulerVersion: schedulerName(opts), PotentialModel: acbsPotentialModel,
+		SchedulerVersion: schedulerName(opts), PotentialModel: modelName,
 	}
 	if freshS {
 		stats.PotentialEvaluations++
@@ -147,7 +157,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 			}
 
 			if direction == 'F' {
-				cur := pop(qf)
+				cur := radixPop(qf)
 				stats.QueuePops++
 				if cur.distance != df[cur.node] || settledF[cur.node] {
 					stats.StalePops++
@@ -155,9 +165,13 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				}
 				settledF[cur.node] = true
 				updateACBSBest(cur.node, df, db, &best, &bestReduced, &meet, &stats, phiS, phiT)
-				hForward, _, _, fresh := w.potentialBounds(g, potential, cur.node)
-				if fresh {
-					stats.PotentialEvaluations++
+				hForward := uint64(0)
+				if opts.pruning && best != inf {
+					var fresh bool
+					hForward, _, fresh = w.heuristicBounds(g, potential, cur.node)
+					if fresh {
+						stats.BoundEvaluations++
+					}
 				}
 				if opts.pruning && best != inf && boundCannotImprove(df[cur.node], hForward, best) {
 					stats.PrunedAtPop++
@@ -165,7 +179,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					used++
 					continue
 				}
-				edges := g.Adj[cur.node]
+				edges := g.OutEdges(cur.node)
 				used += max(1, len(edges))
 				stats.Expanded++
 				stats.ForwardExpanded++
@@ -176,9 +190,17 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					}
 					nd := df[cur.node] + e.Cost
 					if nd < df[e.To] {
-						hf, _, phi, fresh := w.potentialBounds(g, potential, e.To)
+						phi, fresh := w.potential(g, potential, e.To)
 						if fresh {
 							stats.PotentialEvaluations++
+						}
+						hf := uint64(0)
+						if opts.pruning && best != inf {
+							var boundFresh bool
+							hf, _, boundFresh = w.heuristicBounds(g, potential, e.To)
+							if boundFresh {
+								stats.BoundEvaluations++
+							}
 						}
 						if opts.pruning && best != inf && boundCannotImprove(nd, hf, best) {
 							stats.PrunedAtRelax++
@@ -186,8 +208,8 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 						} else {
 							w.touchForward(e.To)
 							df[e.To] = nd
-							pf[e.To] = cur.node
-							push(qf, item{node: e.To, distance: nd, priority: reducedForwardKey(nd, phi, phiS)})
+							pf[e.To] = int32(cur.node)
+							radixPush(qf, item{node: e.To, distance: nd, priority: reducedForwardKey(nd, phi, phiS)})
 							stats.QueuePushes++
 						}
 					}
@@ -196,7 +218,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					}
 				}
 			} else {
-				cur := pop(qb)
+				cur := radixPop(qb)
 				stats.QueuePops++
 				if cur.distance != db[cur.node] || settledB[cur.node] {
 					stats.StalePops++
@@ -204,9 +226,13 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				}
 				settledB[cur.node] = true
 				updateACBSBest(cur.node, df, db, &best, &bestReduced, &meet, &stats, phiS, phiT)
-				_, hBackward, _, fresh := w.potentialBounds(g, potential, cur.node)
-				if fresh {
-					stats.PotentialEvaluations++
+				hBackward := uint64(0)
+				if opts.pruning && best != inf {
+					var fresh bool
+					_, hBackward, fresh = w.heuristicBounds(g, potential, cur.node)
+					if fresh {
+						stats.BoundEvaluations++
+					}
 				}
 				if opts.pruning && best != inf && boundCannotImprove(db[cur.node], hBackward, best) {
 					stats.PrunedAtPop++
@@ -214,7 +240,7 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					used++
 					continue
 				}
-				edges := g.Rev[cur.node]
+				edges := g.InEdges(cur.node)
 				used += max(1, len(edges))
 				stats.Expanded++
 				stats.BackwardExpanded++
@@ -225,9 +251,17 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 					}
 					nd := db[cur.node] + e.Cost
 					if nd < db[e.To] {
-						_, hb, phi, fresh := w.potentialBounds(g, potential, e.To)
+						phi, fresh := w.potential(g, potential, e.To)
 						if fresh {
 							stats.PotentialEvaluations++
+						}
+						hb := uint64(0)
+						if opts.pruning && best != inf {
+							var boundFresh bool
+							_, hb, boundFresh = w.heuristicBounds(g, potential, e.To)
+							if boundFresh {
+								stats.BoundEvaluations++
+							}
 						}
 						if opts.pruning && best != inf && boundCannotImprove(nd, hb, best) {
 							stats.PrunedAtRelax++
@@ -235,8 +269,8 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 						} else {
 							w.touchBackward(e.To)
 							db[e.To] = nd
-							pb[e.To] = cur.node
-							push(qb, item{node: e.To, distance: nd, priority: reducedBackwardKey(nd, phi, phiT)})
+							pb[e.To] = int32(cur.node)
+							radixPush(qb, item{node: e.To, distance: nd, priority: reducedBackwardKey(nd, phi, phiT)})
 							stats.QueuePushes++
 						}
 					}
@@ -301,32 +335,70 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 type acbsPotential struct {
 	sourceX, sourceY, sourceZ float64
 	targetX, targetY, targetZ float64
+	dirX, dirY, dirZ          float64
+	projectionScale           float64
 	costPerMeter              float64
+	projection                bool
 	enabled                   bool
 }
 
-func newACBSPotential(g *graph.Graph, source, target int) acbsPotential {
+func newACBSPotential(g *graph.Graph, source, target int, projection bool) acbsPotential {
 	if g.MinCostPerMeter <= 0 {
 		return acbsPotential{}
 	}
 	sx, sy, sz := g.UnitVector(source)
 	tx, ty, tz := g.UnitVector(target)
-	return acbsPotential{
+	p := acbsPotential{
 		sourceX: sx, sourceY: sy, sourceZ: sz,
 		targetX: tx, targetY: ty, targetZ: tz,
 		costPerMeter: g.MinCostPerMeter * (1 - 1e-12),
+		projection:   projection,
 		enabled:      true,
 	}
+	if !projection {
+		return p
+	}
+	dx, dy, dz := tx-sx, ty-sy, tz-sz
+	norm := math.Sqrt(dx*dx + dy*dy + dz*dz)
+	if norm <= 0 {
+		return acbsPotential{}
+	}
+	const earthRadiusMeters = 6371008.8
+	p.dirX, p.dirY, p.dirZ = dx/norm, dy/norm, dz/norm
+	p.costPerMeter = g.MinCostPerMeter * (1 - 1e-9)
+	p.projectionScale = 2 * earthRadiusMeters * p.costPerMeter
+	return p
 }
 
-func (p acbsPotential) bounds(g *graph.Graph, v int) (forward, backward uint64, phi int64) {
+func (p acbsPotential) phi(g *graph.Graph, v int) int64 {
 	if !p.enabled {
-		return 0, 0, 0
+		return 0
+	}
+	x, y, z := g.UnitVector(v)
+	if p.projection {
+		value := p.projectionScale * (x*p.dirX + y*p.dirY + z*p.dirZ)
+		const limit = float64(math.MaxInt64 / 4)
+		if value >= limit {
+			return math.MaxInt64 / 4
+		}
+		if value <= -limit {
+			return -math.MaxInt64 / 4
+		}
+		return int64(value)
+	}
+	forward := lowerBoundCost(chordUnitMeters(x, y, z, p.targetX, p.targetY, p.targetZ), p.costPerMeter)
+	backward := lowerBoundCost(chordUnitMeters(x, y, z, p.sourceX, p.sourceY, p.sourceZ), p.costPerMeter)
+	return signedDifference(forward, backward)
+}
+
+func (p acbsPotential) bounds(g *graph.Graph, v int) (forward, backward uint64) {
+	if !p.enabled {
+		return 0, 0
 	}
 	x, y, z := g.UnitVector(v)
 	forward = lowerBoundCost(chordUnitMeters(x, y, z, p.targetX, p.targetY, p.targetZ), p.costPerMeter)
 	backward = lowerBoundCost(chordUnitMeters(x, y, z, p.sourceX, p.sourceY, p.sourceZ), p.costPerMeter)
-	return forward, backward, signedDifference(forward, backward)
+	return forward, backward
 }
 
 func chordUnitMeters(ax, ay, az, bx, by, bz float64) float64 {
@@ -392,13 +464,13 @@ func boundCannotImprove(gCost, heuristic, incumbent uint64) bool {
 	return heuristic >= incumbent-gCost
 }
 
-func peekValid(q *minHeap, dist []uint64, settled []bool, stats *Stats) (item, bool) {
+func peekValid(q *radixHeap, dist []uint64, settled []bool, stats *Stats) (item, bool) {
 	for q.Len() > 0 {
-		cur := (*q)[0]
+		cur, _ := radixPeek(q)
 		if cur.distance == dist[cur.node] && !settled[cur.node] {
 			return cur, true
 		}
-		pop(q)
+		radixPop(q)
 		stats.QueuePops++
 		stats.StalePops++
 	}
@@ -422,10 +494,10 @@ func chooseACBSStaticDirection(g *graph.Graph, frontF, frontB item, lenF, lenB i
 	if frontB.priority < frontF.priority {
 		return 'B'
 	}
-	if len(g.Adj[frontF.node]) < len(g.Rev[frontB.node]) {
+	if g.OutDegree(frontF.node) < g.InDegree(frontB.node) {
 		return 'F'
 	}
-	if len(g.Rev[frontB.node]) < len(g.Adj[frontF.node]) {
+	if g.InDegree(frontB.node) < g.OutDegree(frontF.node) {
 		return 'B'
 	}
 	if lenF <= lenB {
@@ -461,8 +533,8 @@ func chooseACBSDirection(g *graph.Graph, frontF, frontB item, lenF, lenB int, sc
 	if frontB.priority < frontF.priority {
 		return 'B'
 	}
-	degreeF := len(g.Adj[frontF.node])
-	degreeB := len(g.Rev[frontB.node])
+	degreeF := g.OutDegree(frontF.node)
+	degreeB := g.InDegree(frontB.node)
 	if degreeF < degreeB {
 		return 'F'
 	}

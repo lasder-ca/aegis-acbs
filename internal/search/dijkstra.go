@@ -41,7 +41,7 @@ func dijkstra(ctx context.Context, g *graph.Graph, source, target int, useHeuris
 		if cur.node == target {
 			break
 		}
-		for _, e := range g.Adj[cur.node] {
+		for _, e := range g.OutEdges(cur.node) {
 			stats.Relaxed++
 			if dist[cur.node] > inf-e.Cost {
 				continue

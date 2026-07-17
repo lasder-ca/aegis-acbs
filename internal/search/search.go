@@ -13,14 +13,15 @@ import (
 type Algorithm string
 
 const (
-	Dijkstra     Algorithm = "dijkstra"
-	BiDijkstra   Algorithm = "bidijkstra"
-	AStar        Algorithm = "astar"
-	Aegis        Algorithm = "aegis"
-	AegisStatic  Algorithm = "aegis-static"
-	AegisNoPrune Algorithm = "aegis-no-prune"
-	Portfolio    Algorithm = "portfolio"
-	AegisRace    Algorithm = "aegis-race"
+	Dijkstra        Algorithm = "dijkstra"
+	BiDijkstra      Algorithm = "bidijkstra"
+	AStar           Algorithm = "astar"
+	Aegis           Algorithm = "aegis"
+	AegisStatic     Algorithm = "aegis-static"
+	AegisNoPrune    Algorithm = "aegis-no-prune"
+	AegisProjection Algorithm = "aegis-projection"
+	Portfolio       Algorithm = "portfolio"
+	AegisRace       Algorithm = "aegis-race"
 )
 
 const policyVersion = "road-v3-time-aware"
@@ -72,6 +73,7 @@ type Stats struct {
 	PrunedAtRelax           uint64    `json:"prunedAtRelax,omitempty"`
 	BoundPruned             uint64    `json:"boundPruned,omitempty"`
 	PotentialEvaluations    uint64    `json:"potentialEvaluations,omitempty"`
+	BoundEvaluations        uint64    `json:"boundEvaluations,omitempty"`
 	UpperBound              uint64    `json:"upperBound,omitempty"`
 	LowerBound              uint64    `json:"lowerBound,omitempty"`
 	OptimalityGap           uint64    `json:"optimalityGap,omitempty"`
@@ -109,6 +111,8 @@ func Run(ctx context.Context, g *graph.Graph, source, target int, alg Algorithm)
 		r, err = acbsStatic(ctx, g, source, target)
 	case AegisNoPrune:
 		r, err = acbsNoPrune(ctx, g, source, target)
+	case AegisProjection:
+		r, err = acbsProjection(ctx, g, source, target)
 	case Portfolio:
 		selected := Select(g, source, target)
 		switch selected {
@@ -200,7 +204,7 @@ func explainDecision(g *graph.Graph, source, target int, selected Algorithm) Dec
 	}
 
 	searchFraction := clamp(0.008+0.82*math.Sqrt(ratio), 0.008, 0.95)
-	dijkstraWork := 550 + float64(edges)*searchFraction*(1+0.018*float64(len(g.Adj[source])))
+	dijkstraWork := 550 + float64(edges)*searchFraction*(1+0.018*float64(g.OutDegree(source)))
 	biFraction := clamp(0.018+0.42*math.Sqrt(searchFraction), 0.018, 0.78)
 	biWork := 1250 + float64(edges)*biFraction*(1.05+0.025*avgDegree)
 	work := map[Algorithm]float64{Dijkstra: dijkstraWork, BiDijkstra: biWork}
@@ -238,8 +242,8 @@ func explainDecision(g *graph.Graph, source, target int, selected Algorithm) Dec
 		HeuristicStrength:   g.HeuristicStrength,
 		Metric:              g.Metric,
 		AStarRatioLimit:     limit,
-		SourceDegree:        len(g.Adj[source]),
-		TargetReverseDegree: len(g.Rev[target]),
+		SourceDegree:        g.OutDegree(source),
+		TargetReverseDegree: g.InDegree(target),
 		PredictedWork:       work,
 	}
 }
@@ -283,13 +287,13 @@ func reconstruct(prev []int, source, target int) []int {
 // reconstructBidirectional materializes a path with one exact-sized allocation.
 // The forward parent array points toward source, while the backward parent array
 // points toward target.
-func reconstructBidirectional(pf, pb []int, source, meet, target int) []int {
+func reconstructBidirectional(pf, pb []int32, source, meet, target int) []int {
 	if meet < 0 || meet >= len(pf) || meet >= len(pb) {
 		return nil
 	}
 	leftLen := 1
 	for v := meet; v != source; {
-		v = pf[v]
+		v = int(pf[v])
 		if v < 0 || v >= len(pf) {
 			return nil
 		}
@@ -297,7 +301,7 @@ func reconstructBidirectional(pf, pb []int, source, meet, target int) []int {
 	}
 	rightLen := 0
 	reachedTarget := meet == target
-	for v := pb[meet]; v >= 0; v = pb[v] {
+	for v := int(pb[meet]); v >= 0; v = int(pb[v]) {
 		if v >= len(pb) {
 			return nil
 		}
@@ -317,10 +321,10 @@ func reconstructBidirectional(pf, pb []int, source, meet, target int) []int {
 		if v == source {
 			break
 		}
-		v = pf[v]
+		v = int(pf[v])
 	}
 	pos := leftLen
-	for v := pb[meet]; pos < len(path); v = pb[v] {
+	for v := int(pb[meet]); pos < len(path); v = int(pb[v]) {
 		path[pos] = v
 		pos++
 	}
@@ -340,7 +344,7 @@ func Validate(g *graph.Graph, source, target int, r Result) bool {
 	for i := 0; i+1 < len(r.Path); i++ {
 		from, to := r.Path[i], r.Path[i+1]
 		best := inf
-		for _, e := range g.Adj[from] {
+		for _, e := range g.OutEdges(from) {
 			if e.To == to && e.Cost < best {
 				best = e.Cost
 			}

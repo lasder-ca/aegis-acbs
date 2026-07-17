@@ -18,6 +18,8 @@
 - lower-bound termination
 - A*-style incumbent pruning
 - workspace reuse
+- radix heaps for monotone integer keys
+- CSR graph storage
 - OSM or DIMACS road-graph processing
 
 ## Provisional ACBS contribution
@@ -43,7 +45,8 @@ ACBSの独自候補は、次を1つの道路向け厳密探索として統合し
 7. 2025 tight-termination method
 8. `aegis-static`
 9. `aegis-no-prune`
-10. ACBS full
+10. ACBS chord potential
+11. ACBS projection potential
 
 報告項目:
 

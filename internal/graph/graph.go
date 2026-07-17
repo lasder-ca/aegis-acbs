@@ -25,20 +25,25 @@ type Edge struct {
 }
 
 type Graph struct {
-	Name              string   `json:"name"`
-	Source            string   `json:"source"`
-	Profile           string   `json:"profile"`
-	Metric            Metric   `json:"metric"`
-	Nodes             []Node   `json:"nodes"`
-	Adj               [][]Edge `json:"adj"`
-	Rev               [][]Edge `json:"rev"`
-	EdgeCount         int      `json:"edgeCount"`
-	MinCostPerMeter   float64  `json:"minCostPerMeter"`
-	MeanCostPerMeter  float64  `json:"meanCostPerMeter"`
-	HeuristicStrength float64  `json:"heuristicStrength"`
-	AverageDegree     float64  `json:"averageDegree"`
-	DiameterMeters    float64  `json:"diameterMeters"`
-	Directed          bool     `json:"directed"`
+	Name    string `json:"name"`
+	Source  string `json:"source"`
+	Profile string `json:"profile"`
+	Metric  Metric `json:"metric"`
+	Nodes   []Node `json:"nodes"`
+	// Adj is a construction-time adjacency list. Finalize compacts it into
+	// cache-friendly CSR storage and releases the per-node slice headers.
+	Adj               [][]Edge `json:"-"`
+	outOffsets        []uint32
+	outEdges          []Edge
+	inOffsets         []uint32
+	inEdges           []Edge
+	EdgeCount         int     `json:"edgeCount"`
+	MinCostPerMeter   float64 `json:"minCostPerMeter"`
+	MeanCostPerMeter  float64 `json:"meanCostPerMeter"`
+	HeuristicStrength float64 `json:"heuristicStrength"`
+	AverageDegree     float64 `json:"averageDegree"`
+	DiameterMeters    float64 `json:"diameterMeters"`
+	Directed          bool    `json:"directed"`
 	idToIndex         map[int64]int
 	unitX             []float64
 	unitY             []float64
@@ -56,25 +61,32 @@ func (g *Graph) Finalize() error {
 	if len(g.Adj) != len(g.Nodes) {
 		return errors.New("adjacency length does not match node count")
 	}
-	g.Rev = make([][]Edge, len(g.Nodes))
 	g.EdgeCount = 0
 	g.MeanCostPerMeter = 0
 	g.HeuristicStrength = 0
 	g.AverageDegree = 0
 	g.DiameterMeters = 0
-	g.idToIndex = make(map[int64]int, len(g.Nodes))
+	g.idToIndex = nil
 	g.unitX = make([]float64, len(g.Nodes))
 	g.unitY = make([]float64, len(g.Nodes))
 	g.unitZ = make([]float64, len(g.Nodes))
-	var ratioSum float64
-	var ratioCount uint64
+
+	// Validate node IDs without retaining a large hash map on the routing hot
+	// path. IndexByID builds the map lazily only for clients that need it.
+	ids := make([]int64, len(g.Nodes))
 	for i, n := range g.Nodes {
-		if _, exists := g.idToIndex[n.ID]; exists {
-			return errors.New("duplicate node id")
-		}
-		g.idToIndex[n.ID] = i
+		ids[i] = n.ID
 		g.unitX[i], g.unitY[i], g.unitZ[i] = EarthUnit(n.Lat, n.Lon)
 	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for i := 1; i < len(ids); i++ {
+		if ids[i] == ids[i-1] {
+			return errors.New("duplicate node id")
+		}
+	}
+
+	var ratioSum float64
+	var ratioCount uint64
 	for from, edges := range g.Adj {
 		sort.Slice(edges, func(i, j int) bool {
 			if edges[i].To == edges[j].To {
@@ -96,9 +108,11 @@ func (g *Graph) Finalize() error {
 			dedup = append(dedup, e)
 		}
 		g.Adj[from] = dedup
+		g.EdgeCount += len(dedup)
+		if uint64(g.EdgeCount) > uint64(^uint32(0)) {
+			return errors.New("graph has too many edges for compact storage")
+		}
 		for _, e := range dedup {
-			g.Rev[e.To] = append(g.Rev[e.To], Edge{To: from, Cost: e.Cost})
-			g.EdgeCount++
 			meters := HaversineMeters(g.Nodes[from].Lat, g.Nodes[from].Lon, g.Nodes[e.To].Lat, g.Nodes[e.To].Lon)
 			if meters > 0 {
 				ratio := float64(e.Cost) / meters
@@ -110,6 +124,32 @@ func (g *Graph) Finalize() error {
 			}
 		}
 	}
+
+	g.outOffsets = make([]uint32, len(g.Nodes)+1)
+	g.inOffsets = make([]uint32, len(g.Nodes)+1)
+	for from, edges := range g.Adj {
+		g.outOffsets[from+1] = g.outOffsets[from] + uint32(len(edges))
+		for _, e := range edges {
+			g.inOffsets[e.To+1]++
+		}
+	}
+	for i := 1; i < len(g.inOffsets); i++ {
+		g.inOffsets[i] += g.inOffsets[i-1]
+	}
+	g.outEdges = make([]Edge, g.EdgeCount)
+	g.inEdges = make([]Edge, g.EdgeCount)
+	inCursor := append([]uint32(nil), g.inOffsets[:len(g.Nodes)]...)
+	for from, edges := range g.Adj {
+		copy(g.outEdges[g.outOffsets[from]:g.outOffsets[from+1]], edges)
+		for _, e := range edges {
+			at := inCursor[e.To]
+			g.inEdges[at] = Edge{To: from, Cost: e.Cost}
+			inCursor[e.To]++
+		}
+	}
+	// Drop the n slice headers and their individually allocated backing arrays.
+	g.Adj = nil
+
 	if math.IsInf(g.MinCostPerMeter, 1) || g.MinCostPerMeter <= 0 {
 		g.MinCostPerMeter = 0
 	}
@@ -126,11 +166,24 @@ func (g *Graph) Finalize() error {
 	return nil
 }
 
+// OutEdges returns the outgoing edges of v from compact CSR storage.
+func (g *Graph) OutEdges(v int) []Edge {
+	return g.outEdges[g.outOffsets[v]:g.outOffsets[v+1]]
+}
+
+// InEdges returns the incoming edges of v from compact reverse CSR storage.
+func (g *Graph) InEdges(v int) []Edge {
+	return g.inEdges[g.inOffsets[v]:g.inOffsets[v+1]]
+}
+
+func (g *Graph) OutDegree(v int) int { return int(g.outOffsets[v+1] - g.outOffsets[v]) }
+func (g *Graph) InDegree(v int) int  { return int(g.inOffsets[v+1] - g.inOffsets[v]) }
+
 func detectDirected(g *Graph) bool {
-	for from, edges := range g.Adj {
-		for _, e := range edges {
+	for from := range g.Nodes {
+		for _, e := range g.OutEdges(from) {
 			found := false
-			for _, back := range g.Adj[e.To] {
+			for _, back := range g.OutEdges(e.To) {
 				if back.To == from {
 					found = true
 					break

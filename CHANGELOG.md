@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0-experimental
+
+- Replace bidirectional binary heaps with exact monotone radix heaps over non-negative reduced keys.
+- Compact forward and reverse adjacency into CSR arrays after graph finalization.
+- Build the node-ID lookup map lazily instead of retaining it for every routing process.
+- Store bidirectional parents and touched-node indexes as 32-bit values.
+- Add `aegis-projection`, an exact linear-projection feasible-potential ablation.
+- Keep the default `aegis` on the stronger balanced chord potential.
+- Add radix ordering, projection reduced-cost, and dual-potential correctness tests.
+- Preserve the adaptive scheduler, incumbent, and coupled lower-bound termination semantics.
+
 ## 0.5.0-experimental
 
 - Replace `container/heap` with a specialized allocation-free binary heap.
