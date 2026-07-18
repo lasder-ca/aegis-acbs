@@ -14,7 +14,7 @@
 ![Status](https://img.shields.io/badge/status-research%20prototype-7c3aed)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-[English](README.md) · [アルゴリズム](docs/ALGORITHM.md) · [正確性](docs/CORRECTNESS.md) · [東京検証](docs/TOKYO_EVIDENCE.md)
+[English](README.md) · [ドキュメント一覧](docs/README.md) · [アルゴリズム](docs/ALGORITHM.md) · [東京検証](docs/TOKYO_EVIDENCE.md)
 
 </div>
 
@@ -120,12 +120,13 @@ bin/aegis benchmark \
 
 | 分類 | コマンド | 用途 |
 |---|---|---|
-| データ | `import-osm`, `import-dimacs` | 元データをAegisグラフへ変換 |
+| データ | `import-osm`, `import-dimacs`, `inspect` | 元データをAegisグラフへ変換・確認 |
 | 経路探索 | `route` | 1件の厳密な最短経路を計算 |
 | 評価 | `benchmark`, `stress` | 反復測定と並行負荷試験 |
 | tail解析 | `diagnose`, `replay-regret` | クエリ単位のslowdownを検出・隔離 |
 | scheduler研究 | `profile-trigger` | checkpointごとのfrontier特徴量を記録 |
 | 集約 | `aggregate` | 複数seedのbenchmark matrixを生成 |
+| local UI | `serve` | local HTTP interfaceを起動 |
 
 標準比較にはDijkstra、双方向Dijkstra、地理A*、固定scheduler版ACBS、適応scheduler版ACBSを含めます。不採用の実験変種は、結果を再現できるようにする目的だけで残しています。
 
@@ -164,16 +165,58 @@ bin/aegis profile-trigger \
 
 ## ドキュメント
 
-| 文書 | 内容 |
-|---|---|
-| [アルゴリズム](docs/ALGORITHM.md) | 状態、上下界、potential、scheduler、停止条件 |
-| [正確性](docs/CORRECTNESS.md) | 最短性の根拠と不変条件 |
-| [ベンチマーク方法](docs/BENCHMARKING.md) | 測定順序、統計、メモリ、比較値の意味 |
-| [東京検証](docs/TOKYO_EVIDENCE.md) | 大規模グラフ結果、生データ、ゲート、不採用実験 |
-| [関連研究](docs/RELATED_WORK.md) | 既存の双方向探索研究との関係 |
-| [データ形式](docs/DATA.md) | OSM、DIMACS、Aegisグラフ形式 |
-| [コントリビューション](CONTRIBUTING.md) | 開発手順と検証要件 |
-| [セキュリティ](SECURITY.md) | 脆弱性報告方針 |
+<div align="center">
+
+**[すべての技術文書を一覧で見る →](docs/README.md)**
+
+</div>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 仕組みを理解する
+
+- **[アルゴリズム](docs/ALGORITHM.md)**  
+  状態、上下界、potential、scheduler、停止条件
+- **[正確性](docs/CORRECTNESS.md)**  
+  最短性の根拠、不変条件、補題、機械検査
+- **[関連研究](docs/RELATED_WORK.md)**  
+  既存の双方向探索研究との関係、主張の境界
+
+</td>
+<td width="50%" valign="top">
+
+### 実験を理解・再現する
+
+- **[ベンチマーク方法](docs/BENCHMARKING.md)**  
+  測定順序、統計、メモリ、比較値、tail解析
+- **[東京検証](docs/TOKYO_EVIDENCE.md)**  
+  大規模graph、生データ、gate、不採用実験
+- **[データ形式](docs/DATA.md)**  
+  OSM、PBF、DIMACS、Aegis graph形式
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 開発する
+
+- **[コントリビューション](CONTRIBUTING.md)**  
+  開発flow、検証要件、PR checklist
+
+</td>
+<td width="50%" valign="top">
+
+### 安全に運用・報告する
+
+- **[セキュリティ](SECURITY.md)**  
+  untrusted input、非公開報告、運用guidance
+
+</td>
+</tr>
+</table>
 
 ## 現在の境界
 
