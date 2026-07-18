@@ -46,7 +46,7 @@ cp "$PROFILE/trigger-profile.csv" "$DEST/trigger-profile.csv"
 cp "$PROFILE/trigger-profile.html" "$DEST/trigger-profile.html"
 cp "$PROFILE/trigger-profile-gate.txt" "$DEST/trigger-profile-gate.txt"
 
-python3 "$ROOT/scripts/check-v012-release-evidence.py" "$DEST"
+python3 "$ROOT/scripts/check-release-evidence.py" "$DEST"
 (
   cd "$DEST"
   find . -maxdepth 1 -type f ! -name MANIFEST.sha256 -printf '%f\n' \

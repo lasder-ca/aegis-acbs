@@ -1,8 +1,10 @@
 # Changelog
 
-## v0.12.0-research-preview
+Public semantic versioning starts at `v0.1.0`. Earlier numbered tags were private research iterations and are not part of the public release series.
 
-- Publish the first research-preview repository without changing the default ACBS search.
+## v0.1.0
+
+- Publish the first public research release without changing the default ACBS search.
 - Record the Tokyo 10,000-query correctness, tail validation, isolated replay, rejected guard gate, and narrow diagnostic trigger.
 - Add raw-evidence import and strict release-evidence validation scripts.
 - Add English and Japanese README files and a dedicated evidence/limitations document.

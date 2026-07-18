@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-[[ "$(cat VERSION)" == "0.12.0-research-preview" ]] || {
+[[ "$(cat VERSION)" == "0.1.0" ]] || {
   echo "unexpected VERSION: $(cat VERSION)" >&2
   exit 1
 }
@@ -19,8 +19,8 @@ gofmt_files="$(gofmt -l cmd internal)"
 go test ./...
 go vet ./...
 go test -race ./internal/search ./internal/graph ./internal/bench ./internal/server
-python3 scripts/check-v012-release-evidence.py research/tokyo-time-2026-07-18
+python3 scripts/check-release-evidence.py research/tokyo-time-2026-07-18
 bash -n scripts/*.sh
 python3 -m py_compile scripts/*.py
 
-echo "v0.12.0 release validation: PASS"
+echo "v0.1.0 release validation: PASS"

@@ -45,15 +45,15 @@ for f in artifacts/tail-replay/guard-benchmark.json artifacts/tail-replay/guard-
 cp artifacts/matrix/benchmark-matrix.json artifacts/matrix/benchmark-matrix.csv artifacts/matrix/benchmark-matrix.html "$DIST/"
 cp artifacts/tag-comparison/summary.md "$DIST/tag-comparison.md"
 cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.11.2.html"
-cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.12.0.html"
+cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.1.0.html"
 
 OLD_TAG=v0.11.2-experimental BENCHTIME=20x COUNT=3 scripts/compare-allocations.sh artifacts/allocation-comparison
 cp artifacts/allocation-comparison/summary.json artifacts/allocation-comparison/summary.md "$DIST/"
 cp artifacts/allocation-comparison/old.txt "$DIST/allocation-v0.11.2.txt"
-cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.12.0.txt"
+cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.1.0.txt"
 
 if [[ -f research/tokyo-time-2026-07-18/trigger-profile.json ]]; then
-  python3 scripts/check-v012-release-evidence.py research/tokyo-time-2026-07-18
+  python3 scripts/check-release-evidence.py research/tokyo-time-2026-07-18
   (cd research && zip -qr "$DIST/tokyo-time-2026-07-18-evidence.zip" tokyo-time-2026-07-18)
 else
   cp research/tokyo-time-2026-07-18/observed-summary.json "$DIST/tokyo-time-2026-07-18-observed-summary.json"
@@ -67,7 +67,7 @@ info={
   'name':'Aegis ACBS','version':version,'commit':commit,
   'builtAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
   'builder':{'platform':platform.platform(),'python':platform.python_version()},
-  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a v0.11.2/v0.12.0 tag comparison, query-level regret diagnosis, an isolated v0.11.2/v0.12.0 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
+  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a internal v0.11.2/public v0.1.0 tag comparison, query-level regret diagnosis, an isolated internal v0.11.2/public v0.1.0 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
 }
 open(os.path.join(dist,'BUILD-INFO.json'),'w').write(json.dumps(info,indent=2)+'\n')
 sbom={'bomFormat':'CycloneDX','specVersion':'1.5','serialNumber':'urn:uuid:aegis-acbs-'+version,'version':1,'metadata':{'component':{'type':'application','name':'aegis-acbs','version':version}},'components':[]}
@@ -75,7 +75,14 @@ open(os.path.join(dist,'SBOM.cdx.json'),'w').write(json.dumps(sbom,indent=2)+'\n
 PY
 
 if git rev-parse --git-dir >/dev/null 2>&1; then
-  git bundle create "$DIST/aegis-acbs-$VERSION.bundle" --all
+  bundle_stage="$(mktemp -d)"
+  git clone --bare "$ROOT" "$bundle_stage/repo.git" >/dev/null 2>&1
+  while IFS= read -r tag; do
+    [[ -n "$tag" ]] && git -C "$bundle_stage/repo.git" tag -d "$tag" >/dev/null
+  done < <(git -C "$bundle_stage/repo.git" tag -l)
+  git -C "$bundle_stage/repo.git" symbolic-ref HEAD refs/heads/main
+  git -C "$bundle_stage/repo.git" bundle create "$DIST/aegis-acbs-$VERSION.bundle" --all
+  rm -rf "$bundle_stage"
 fi
 
 (cd "$DIST" && sha256sum $(find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name '*complete-release.zip' -printf '%f\n' | sort) > SHA256SUMS)

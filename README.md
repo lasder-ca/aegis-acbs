@@ -118,7 +118,7 @@ See [Benchmarking](docs/BENCHMARKING.md), [Correctness](docs/CORRECTNESS.md), [A
 
 ## Release status
 
-`v0.12.0-research-preview` is the first public research preview. It keeps the v0.11.2 default search unchanged and publishes successful and failed experiments together.
+`v0.1.0` is the first public research release. It keeps the v0.11.2 default search unchanged and publishes successful and failed experiments together.
 
 ## License
 

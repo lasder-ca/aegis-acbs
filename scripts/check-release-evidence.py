@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the Tokyo evidence required by v0.12.0-research-preview."""
+"""Validate the Tokyo evidence required by the public v0.1.0 release."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def close(value: float, expected: float, tolerance: float = 1e-9) -> bool:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        raise SystemExit("usage: check-v012-release-evidence.py EVIDENCE_DIR")
+        raise SystemExit("usage: check-release-evidence.py EVIDENCE_DIR")
 
     root = Path(sys.argv[1])
     validation = load(root / "regret-validation.json")
@@ -72,7 +72,7 @@ def main() -> int:
     require(condition.get("operator") == "<=", "selected operator must be <=")
     require(close(condition.get("threshold", 0), 0.4583333333333333, 1e-7), "unexpected switchRate threshold")
 
-    print("v0.12.0 research-preview evidence: PASS")
+    print("v0.1.0 release evidence: PASS")
     print("  exact routes: 10,000/10,000")
     print("  initial meaningful tails: 11")
     print("  isolated replay: scheduler=1 persistent=1 not-reproduced=9")

@@ -1,4 +1,4 @@
-# Aegis ACBS v0.12.0-research-preview
+# Aegis ACBS v0.1.0
 
 This is the first public research preview of Aegis Coupled-Bound Search.
 

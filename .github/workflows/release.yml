@@ -31,16 +31,15 @@ jobs:
           fi
       - name: Validate evidence
         if: steps.existing.outputs.exists != 'true'
-        run: python3 scripts/check-v012-release-evidence.py research/tokyo-time-2026-07-18
+        run: python3 scripts/check-release-evidence.py research/tokyo-time-2026-07-18
       - name: Build release assets
         if: steps.existing.outputs.exists != 'true'
         run: scripts/build-release.sh
-      - name: Create prerelease
+      - name: Create release
         if: steps.existing.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "Aegis ACBS $GITHUB_REF_NAME" \
-            --notes-file RELEASE_NOTES.md \
-            --prerelease
+            --notes-file RELEASE_NOTES.md

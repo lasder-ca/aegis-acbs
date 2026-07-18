@@ -1,6 +1,6 @@
 # Release plan
 
-## v0.12.0-research-preview — first public preview
+## v0.1.0 — first public research release
 
 The default `aegis` search remains unchanged from v0.11.2. The release publishes the algorithm, reproducibility tools, successful tests, rejected guard experiments, and explicit limitations.
 
@@ -16,7 +16,7 @@ Publication requirements:
 
 The checkpoint-48 rule is diagnostic only. It must not change the default scheduler in this release.
 
-## v0.13.0-research-preview — independent generalization
+## v0.2.0 — independent generalization
 
 Target independent city and seed validation:
 

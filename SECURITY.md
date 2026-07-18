@@ -4,7 +4,7 @@ Aegis ACBS processes local graph files and can optionally expose a local HTTP in
 
 ## Supported versions
 
-Only the latest research-preview tag receives security fixes. The project is pre-1.0 and does not promise long-term support for older previews.
+Only the latest public release tag receives security fixes. The project is pre-1.0 and does not promise long-term support for older previews.
 
 ## Reporting a vulnerability
 
