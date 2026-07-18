@@ -1,0 +1,75 @@
+{
+  "version": "v0.11.1-connection-guard-gate-v1",
+  "allCorrect": true,
+  "selected": null,
+  "pass": false,
+  "candidates": [
+    {
+      "algorithm": "aegis-connect-32",
+      "pass": false,
+      "failures": [
+        "global mean regression 15.95% > 1.00%",
+        "global median regression 4.30% > 1.00%",
+        "global p95 regression 14.98% > 1.00%",
+        "global relaxed regression 4.92% > 1.00%",
+        "global expanded regression 4.72% > 1.00%"
+      ],
+      "minSchedulerTailGainNs": 778156,
+      "maxPersistentRegressionNs": 0,
+      "timingRatios": {
+        "mean": 1.159464004076073,
+        "median": 1.0430355310280426,
+        "p95": 1.1497515102160942
+      },
+      "workRatios": {
+        "relaxed": 1.0491996402877697,
+        "expanded": 1.047240586631502
+      },
+      "score": -0.9555620353184523
+    },
+    {
+      "algorithm": "aegis-connect-40",
+      "pass": false,
+      "failures": [
+        "global mean regression 14.98% > 1.00%",
+        "global median regression 2.10% > 1.00%",
+        "global p95 regression 15.52% > 1.00%",
+        "global relaxed regression 2.52% > 1.00%",
+        "global expanded regression 2.94% > 1.00%"
+      ],
+      "minSchedulerTailGainNs": 732039,
+      "maxPersistentRegressionNs": 341425,
+      "timingRatios": {
+        "mean": 1.1498003569124258,
+        "median": 1.0210203497656503,
+        "p95": 1.1552106294521485
+      },
+      "workRatios": {
+        "relaxed": 1.025224820143885,
+        "expanded": 1.0293850348379279
+      },
+      "score": -0.9669924687111241
+    },
+    {
+      "algorithm": "aegis-connect-32x16",
+      "pass": false,
+      "failures": [
+        "scheduler-tail seed-1010/report.json query=877 gain 0.283ms < 0.500ms",
+        "global relaxed regression 1.23% > 1.00%",
+        "global expanded regression 2.46% > 1.00%"
+      ],
+      "minSchedulerTailGainNs": 283186,
+      "maxPersistentRegressionNs": 184654,
+      "timingRatios": {
+        "mean": 0.9995903444179306,
+        "median": 0.9947794145065036,
+        "p95": 0.993383335856361
+      },
+      "workRatios": {
+        "relaxed": 1.012320143884892,
+        "expanded": 1.024644938254005
+      },
+      "score": 0.15996130872997477
+    }
+  ]
+}

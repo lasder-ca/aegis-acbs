@@ -1,0 +1,19 @@
+v0.11.1 connection-guard release gate
+  aegis-connect-32: FAIL gain=0.778ms persistent-regression=0.000ms mean=1.1595x median=1.0430x p95=1.1498x relaxed=1.0492x expanded=1.0472x
+    - global mean regression 15.95% > 1.00%
+    - global median regression 4.30% > 1.00%
+    - global p95 regression 14.98% > 1.00%
+    - global relaxed regression 4.92% > 1.00%
+    - global expanded regression 4.72% > 1.00%
+  aegis-connect-40: FAIL gain=0.732ms persistent-regression=0.341ms mean=1.1498x median=1.0210x p95=1.1552x relaxed=1.0252x expanded=1.0294x
+    - global mean regression 14.98% > 1.00%
+    - global median regression 2.10% > 1.00%
+    - global p95 regression 15.52% > 1.00%
+    - global relaxed regression 2.52% > 1.00%
+    - global expanded regression 2.94% > 1.00%
+  aegis-connect-32x16: FAIL gain=0.283ms persistent-regression=0.185ms mean=0.9996x median=0.9948x p95=0.9934x relaxed=1.0123x expanded=1.0246x
+    - scheduler-tail seed-1010/report.json query=877 gain 0.283ms < 0.500ms
+    - global relaxed regression 1.23% > 1.00%
+    - global expanded regression 2.46% > 1.00%
+SELECTED: none
+RELEASE GATE: FAIL

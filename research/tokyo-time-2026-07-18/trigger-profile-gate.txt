@@ -1,0 +1,12 @@
+v0.11.2 trigger-profile gate
+  queries: 10000
+  scheduler tails: 1
+  persistent tails: 1
+  trace errors: 0
+  unstable labels: 0
+  all correct: True
+  selected: checkpoint=48 matches=1 positives=1 false-positives=0
+    switchRate <= 0.458333333
+PROFILE VALID: PASS
+NARROW TRIGGER: FOUND
+PROMOTION: diagnostic only; requires independent seed/city validation
