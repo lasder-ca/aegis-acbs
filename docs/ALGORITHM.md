@@ -1,95 +1,142 @@
-# Aegis Coupled-Bound Search
+<div align="center">
 
-## Scope
+# ACBS アルゴリズム
 
-Aegis Coupled-Bound Search (ACBS) computes an exact point-to-point shortest path on a finite directed graph with non-negative integer edge weights. Road graphs use both the original adjacency structure and a reverse adjacency structure.
+**共有下界と適応的な辺処理配分を組み合わせた、厳密な双方向最短経路探索。**
 
-The implementation advances two search frontiers inside one algorithm:
+![Exact](https://img.shields.io/badge/result-exact-16a34a)
+![Graph](https://img.shields.io/badge/graph-directed-475569)
+![Weights](https://img.shields.io/badge/weights-non--negative-475569)
+![Status](https://img.shields.io/badge/status-research-7c3aed)
 
-- a forward frontier from the source,
-- a reverse frontier from the target,
-- a shared incumbent upper bound,
-- and a shared admissible lower bound used for termination.
+[ドキュメント一覧](README.md) · [正確性](CORRECTNESS.md) · [ベンチマーク](BENCHMARKING.md) · [トップ](../README.ja.md)
 
-The adaptive component controls exploration order only. Exactness depends on the feasible potential, the lower and upper bounds, and the stopping rule.
+</div>
 
-## State
+---
 
-For source `s`, target `t`, and node `v`:
+## 要点
 
-- `OPEN_F`: forward priority queue,
-- `OPEN_B`: reverse priority queue,
-- `g_F(v)`: best known cost from `s` to `v`,
-- `g_B(v)`: best known cost from `v` to `t`,
-- `U`: cost of the best complete path found so far,
-- `L`: lower bound on every not-yet-certified path.
+<table>
+<tr>
+<td align="center"><strong>2方向</strong><br><sub>始点側と終点側のfrontier</sub></td>
+<td align="center"><strong>1つの証明</strong><br><sub>共有下界と共通上界</sub></td>
+<td align="center"><strong>適応配分</strong><br><sub>辺処理chunkを動的に配る</sub></td>
+<td align="center"><strong>厳密停止</strong><br><sub>下界が上界へ到達したら終了</sub></td>
+</tr>
+</table>
 
-## Geographic lower bounds
+Aegis Coupled-Bound Search（ACBS）は、有限な有向グラフ上で1対1の厳密最短経路を求めます。辺重みは非負整数です。道路グラフでは、元の隣接構造と全辺を反転した逆隣接構造を使用します。
 
-At graph finalization, each latitude/longitude coordinate is mapped to a point on the unit sphere:
+適応部分が変更するのは**探索順序だけ**です。最短性は、実行可能なpotential、上下界、接続候補、停止条件によって保証されます。
+
+## 全体像
+
+```mermaid
+flowchart LR
+    S((始点 s)) --> F[前向き frontier]
+    T((終点 t)) --> B[後ろ向き frontier]
+
+    P[balanced feasible potential] --> F
+    P --> B
+
+    F --> M[接続候補 m]
+    B --> M
+    M --> U[上界 U]
+
+    F --> L[結合下界 L]
+    B --> L
+
+    L --> Q{L ≥ U?}
+    U --> Q
+    Q -- いいえ --> W[schedulerが次のchunkを配分]
+    W --> F
+    W --> B
+    Q -- はい --> R[厳密な最短経路]
+```
+
+## 探索状態
+
+始点を`s`、終点を`t`、任意の頂点を`v`とします。
+
+| 記号 | 意味 |
+|---|---|
+| `OPEN_F` | 前向き探索のpriority queue |
+| `OPEN_B` | 後ろ向き探索のpriority queue |
+| `g_F(v)` | `s`から`v`までに判明している最小コスト |
+| `g_B(v)` | `v`から`t`までに判明している最小コスト |
+| `U` | 発見済みの完全経路の最小コスト（incumbent upper bound） |
+| `L` | 未確定経路が下回れない許容下界 |
+
+> [!IMPORTANT]
+> `U`は実在する経路から作られる上界です。`L`はまだ調べ終えていない経路に対する下界です。`L ≥ U`になった時点で、未探索部分からより短い経路は現れません。
+
+## 地理的下界
+
+グラフ確定時に、緯度・経度を単位球面上の3次元座標へ変換します。
 
 ```text
 q(v) = (x(v), y(v), z(v))
 ```
 
-The Earth-chord distance is:
+地球の弦距離は次です。
 
 ```text
 chord(u, v) = R ||q(u) - q(v)||₂
 ```
 
-Chord distance is no greater than great-circle distance and satisfies the triangle inequality. Multiplying it by a conservatively derived minimum cost per meter gives admissible directional bounds:
+弦距離は大円距離以下で、三角不等式を満たします。安全側に求めた1メートル当たりの最小コストを掛け、方向別の許容下界を作ります。
 
 ```text
 h_F(v) = floor(chord(v, t) × min_cost_per_meter)
 h_B(v) = floor(chord(s, v) × min_cost_per_meter)
 ```
 
-When coordinates or a safe cost-per-meter lower bound are unavailable, both heuristic terms become zero.
+座標または安全な`min_cost_per_meter`を得られない場合、両heuristicは`0`になります。この場合も正確性は維持されますが、地理情報による絞り込みは働きません。
 
-## Balanced feasible potential
+## balanced feasible potential
 
-ACBS uses the doubled potential:
+ACBSは2倍整数表現のpotentialを使います。
 
 ```text
 φ₂(v) = h_F(v) - h_B(v)
 ```
 
-Forward and reverse queue keys are:
+前後queueのkeyは次です。
 
 ```text
 k_F(v) = 2g_F(v) + φ₂(v) - φ₂(s)
 k_B(v) = 2g_B(v) + φ₂(t) - φ₂(v)
 ```
 
-Consistency of the directional bounds keeps reduced edge costs non-negative in both directions. This allows each frontier to use Dijkstra-style label setting on its reduced-cost graph.
+方向別heuristicの整合性により、両方向のreduced edge costは非負になります。したがって、各frontierはreduced-costグラフ上でDijkstra型のlabel-setting探索として進められます。
 
-## Coupled lower bound and incumbent
+## 結合下界と上界
 
-Let `min_F` and `min_B` be the valid minimum keys in the two queues. The coupled lower bound is:
+2つのqueueにある有効な最小keyを`min_F`、`min_B`とします。
 
 ```text
 L₂ = min_F + min_B
 ```
 
-Whenever both searches have finite labels for a connection node `m`, the incumbent is updated:
+両方向で有限labelを持つ接続頂点`m`が見つかるたび、上界を更新します。
 
 ```text
-U = min(U, g_F(m) + g_B(m))
+U  = min(U, g_F(m) + g_B(m))
 U₂ = 2U + φ₂(t) - φ₂(s)
 ```
 
-The search terminates when:
+停止条件は次です。
 
 ```text
 L₂ >= U₂
 ```
 
-At that point no undiscovered path can improve the incumbent. Reports expose `upperBound`, `lowerBound`, and `optimalityGap`; a certified result has an optimality gap of zero.
+この時点で未確定経路は上界を改善できません。レポートには`upperBound`、`lowerBound`、`optimalityGap`を出力します。正常に証明された結果では`optimalityGap = 0`です。
 
-## Adaptive edge-work scheduling
+## 適応edge-work scheduler
 
-Each direction is processed in chunks measured by examined edges rather than only by expanded nodes. The scheduler estimates how efficiently a direction has raised the coupled lower bound:
+ACBSは、展開頂点数ではなく**確認した辺数**を基準に各方向をchunk単位で処理します。方向ごとに、結合下界をどれだけ効率よく押し上げたかを推定します。
 
 ```text
 efficiency = lower_bound_gain
@@ -98,48 +145,65 @@ efficiency = lower_bound_gain
                 + 2 × positive_queue_growth)
 ```
 
-The estimates are smoothed and used with the current queue minima, next-node degree, and queue size. The implementation also forces periodic sampling of the opposite direction to avoid starving one frontier.
+| 入力 | schedulerでの役割 |
+|---|---|
+| 下界の増加量 | その方向が証明を進めた量 |
+| 確認辺数 | 実際に消費した主な探索作業 |
+| 展開頂点数 | queueから確定して処理した状態数 |
+| queue増加量 | 将来へ積み残した探索量 |
+| 次頂点の次数 | 次chunkの予想コスト |
+| queue最小key | 現在の証明進行位置 |
 
-Typical edge budgets range from 256 to 8192 examined edges. After an incumbent is found, the maximum chunk is reduced so the stopping condition is checked more frequently.
+推定値は平滑化され、片方向が飢餓状態にならないよう反対方向を定期的に強制samplingします。通常のedge budgetは256〜8192辺です。上界発見後は停止条件をより頻繁に確認するため最大chunkを縮小します。
 
-The scheduler never rewrites:
+schedulerは次を変更しません。
 
-- reduced edge costs,
-- `g` labels,
-- the incumbent `U`,
-- the coupled lower bound `L`,
-- or the termination condition.
+- reduced edge cost
+- `g` label
+- 上界`U`
+- 結合下界`L`
+- 停止条件
 
-## Queue and graph representation
+## queueとグラフ表現
 
-The finalized graph uses CSR-style arrays for both directions:
+確定済みグラフは、両方向をCSR形式で保持します。
 
 ```text
 outOffsets, outEdges
 inOffsets,  inEdges
 ```
 
-The two priority queues use monotone radix heaps because valid reduced keys are non-decreasing. Search workspaces and queue backing arrays are pooled between requests; returned paths are exact-sized and owned by the caller.
+priority queueには、非減少の整数keyを扱うmonotone radix heapを使用します。探索workspaceとqueueのbacking arrayはリクエスト間で再利用します。返却するpathだけは呼び出し側が所有する正確な長さのsliceです。
 
-## Variants used in evaluation
+## 評価用variant
 
-- `aegis`: adaptive edge-work scheduler with the balanced chord potential.
-- `aegis-static`: the same search and stopping proof with a fixed direction scheduler.
-- `aegis-prune`: an experimental incumbent-bound pruning variant.
-- `aegis-projection`: an experimental linear-projection potential.
+| 名前 | 目的 | 通常比較 |
+|---|---|---:|
+| `aegis` | balanced chord potential＋適応scheduler | ✓ |
+| `aegis-static` | 同じ停止証明で方向schedulerを固定 | ✓ |
+| `aegis-prune` | incumbent-bound pruningの実験 | 明示指定 |
+| `aegis-projection` | 線形projection potentialの実験 | 明示指定 |
 
-Previously rejected scheduler guards remain in the codebase only so published experiments can be reproduced. They are excluded from the normal benchmark set.
+過去に不採用となったscheduler guardは、公開済み実験の再現だけを目的に残しています。標準benchmarkには含めません。
 
-## Complexity
+## 計算量
 
-The worst-case time complexity is:
+| 対象 | 上界 |
+|---|---|
+| 最悪時間計算量 | `O((V + E) log V)` |
+| クエリごとのworkspace | `O(V)` |
+| グラフ保存 | `O(V + E)` |
 
-```text
-O((V + E) log V)
-```
+地理座標の単位ベクトルはグラフ確定時に1回だけ準備します。方向別heuristic値は、クエリ中に触れた頂点だけをcacheします。
 
-The per-query search workspace is `O(V)` excluding the graph. Geographic unit vectors are prepared once when the graph is finalized; directional heuristic values are cached only for touched nodes during a query.
+## 現在の位置づけ
 
-## Status
+ACBSは、既存の最短経路探索要素と、結合下界の進行量に基づく適応的な辺処理配分を統合しています。実装、差分テスト、再現可能な実験は公開していますが、学術的新規性と他グラフへの性能一般化には独立した比較・査読が必要です。
 
-ACBS combines established shortest-path components with an adaptive coupled-bound scheduling strategy. The repository provides implementation details, differential tests, and reproducible experiments. Independent review is still required to determine novelty and performance generalization.
+---
+
+<div align="center">
+
+[正確性を読む](CORRECTNESS.md) · [関連研究を読む](RELATED_WORK.md) · [ドキュメント一覧](README.md)
+
+</div>
