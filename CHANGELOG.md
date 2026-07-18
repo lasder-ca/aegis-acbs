@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.11.1-experimental
+
+- Added three connection-guard candidates: chunk 32 until upper bound, chunk 40 until upper bound, and chunk 32 with a 16-chunk cap.
+- Extended isolated regret replay to compare all candidates on the reproduced Tokyo tails.
+- Added a machine-readable selector that rejects candidates exceeding 1% timing or work regression.
+- Kept the normal `aegis` implementation unchanged pending the Tokyo release gate.
+
+
 ## v0.11.0-experimental
 
 - Added the opt-in `aegis-late-guard` ACBS variant for reproduced late-upper-bound scheduler tails.

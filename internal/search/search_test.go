@@ -41,7 +41,7 @@ func TestBidirectionalAlgorithmsMatchDijkstraExhaustiveSmallDirected(t *testing.
 					if err != nil {
 						t.Fatal(err)
 					}
-					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisLateGuard, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune} {
+					for _, alg := range []Algorithm{BiDijkstra, Aegis, AegisLateGuard, AegisConnect32, AegisConnect40, AegisConnect32x16, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune} {
 						b, err := Run(ctx, g, s, d, alg)
 						if err != nil {
 							t.Fatal(err)
@@ -83,7 +83,7 @@ func TestAStarAndAegisMatchDijkstraRoadLike(t *testing.T) {
 		for q := 0; q < 30; q++ {
 			s, d := rnd.Intn(n), rnd.Intn(n)
 			a, _ := Run(ctx, g, s, d, Dijkstra)
-			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisLateGuard, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
+			for _, alg := range []Algorithm{AStar, BiDijkstra, Aegis, AegisLateGuard, AegisConnect32, AegisConnect40, AegisConnect32x16, AegisPrune, AegisProjection, AegisStatic, AegisNoPrune, AegisRace} {
 				b, err := Run(ctx, g, s, d, alg)
 				if err != nil {
 					t.Fatal(err)
@@ -452,6 +452,60 @@ func TestACBSLateGuardActivatesOnlyForLateTimeSearches(t *testing.T) {
 	}
 	if short.Stats.LateGuardActivations != 0 {
 		t.Fatalf("short time route must not activate late guard: %+v", short.Stats)
+	}
+}
+
+func TestACBSConnectionGuardCandidatesAreExactAndScoped(t *testing.T) {
+	ctx := context.Background()
+	timeGraph := gridGraph(t, 180, 180, true)
+	timeGraph.Metric = graph.MetricTime
+	want, err := Run(ctx, timeGraph, 0, len(timeGraph.Nodes)-1, Dijkstra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, alg := range []Algorithm{AegisConnect32, AegisConnect40, AegisConnect32x16} {
+		got, err := Run(ctx, timeGraph, 0, len(timeGraph.Nodes)-1, alg)
+		if err != nil {
+			t.Fatalf("%s: %v", alg, err)
+		}
+		if got.Stats.Distance != want.Stats.Distance || !Validate(timeGraph, 0, len(timeGraph.Nodes)-1, got) {
+			t.Fatalf("%s changed exact result: want=%+v got=%+v", alg, want.Stats, got.Stats)
+		}
+		if got.Stats.ConnectionGuardActivations != 1 || got.Stats.ConnectionGuardChunks == 0 || got.Stats.ConnectionGuardMode == "" {
+			t.Fatalf("%s did not activate connection guard: %+v", alg, got.Stats)
+		}
+	}
+
+	distanceGraph := gridGraph(t, 180, 180, true)
+	for _, alg := range []Algorithm{AegisConnect32, AegisConnect40, AegisConnect32x16} {
+		got, err := Run(ctx, distanceGraph, 0, len(distanceGraph.Nodes)-1, alg)
+		if err != nil {
+			t.Fatalf("%s: %v", alg, err)
+		}
+		if got.Stats.ConnectionGuardActivations != 0 || got.Stats.ConnectionGuardChunks != 0 {
+			t.Fatalf("%s activated on distance metric: %+v", alg, got.Stats)
+		}
+	}
+}
+
+func TestConnectionGuardThresholdsAndWindows(t *testing.T) {
+	if shouldEngageConnectionGuard(acbsGuardConnect32UntilUpper, 31, 31, 100, 100, true, true) {
+		t.Fatal("connect-32 activated before threshold")
+	}
+	if !shouldEngageConnectionGuard(acbsGuardConnect32UntilUpper, 32, 20, 120, 100, true, true) {
+		t.Fatal("connect-32 did not activate")
+	}
+	if shouldEngageConnectionGuard(acbsGuardConnect40UntilUpper, 39, 30, 120, 100, true, true) {
+		t.Fatal("connect-40 activated before threshold")
+	}
+	if !shouldEngageConnectionGuard(acbsGuardConnect40UntilUpper, 40, 30, 120, 100, true, true) {
+		t.Fatal("connect-40 did not activate")
+	}
+	if connectionGuardMaxChunks(acbsGuardConnect32UntilUpper) != 0 || connectionGuardMaxChunks(acbsGuardConnect40UntilUpper) != 0 {
+		t.Fatal("until-upper candidates must be unbounded until first upper bound")
+	}
+	if connectionGuardMaxChunks(acbsGuardConnect32x16) != 16 {
+		t.Fatal("connect-32x16 must use a 16 chunk window")
 	}
 }
 

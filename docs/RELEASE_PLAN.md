@@ -1,56 +1,37 @@
 # GitHub release plan
 
-Aegis ACBS is still an experimental research implementation. Public release is useful for reproducibility and review, but the repository must not claim that ACBS is novel or universally faster until the related-work and multi-city gates are complete.
+Aegis ACBS remains an experimental exact shortest-path implementation. Public release is for reproducibility and review, not a claim of research novelty or universal superiority.
 
-## v0.11.0-experimental — first public pre-release
+## v0.11.1-experimental — connection-guard selection
 
-Publish the repository and mark the GitHub Release as a **pre-release** after all of these gates pass:
+Evaluate three candidates against the reproduced Tokyo tails and a 10,000-query time benchmark. A candidate passes only when all conditions hold:
 
-1. The reproduced `adaptive-scheduler-tail` case improves by at least 0.5 ms with `aegis-late-guard`.
-2. The reproduced `persistent-classical-tail` case regresses by less than 1 ms.
-3. A 10,000-query Tokyo time benchmark remains 100% correct.
-4. `aegis-late-guard` does not regress mean, median, or p95 by more than 1% against the normal `aegis` implementation.
-5. Linux, Windows, and macOS CI pass; the race detector passes on Linux.
-6. Release assets include source archives, binaries, SHA-256 checksums, SBOM, benchmark JSON, and self-contained HTML reports.
+1. Every reproduced `adaptive-scheduler-tail` improves by at least 0.5 ms.
+2. Every `persistent-classical-tail` regresses by less than 1 ms.
+3. All 10,000 routes match Dijkstra.
+4. Mean, median, and p95 regress by no more than 1%.
+5. Median relaxed edges and expanded nodes regress by no more than 1%.
+6. Linux tests and race detector pass; Windows and macOS builds succeed.
 
-Run the complete Tokyo replay, 10,000-query comparison, and local gate with:
+Run:
 
 ```bash
-scripts/validate-v011-release.sh \
+scripts/validate-v0111-release.sh \
   path/to/tokyo-time.aegis \
   path/to/tokyo-time-tail-v09 \
-  artifacts/v011-release-gate
+  artifacts/v0111-release-gate
 ```
 
-To re-check already generated reports only:
+The gate prints `SELECTED: <algorithm>` and `RELEASE GATE: PASS`. If no candidate passes, keep the repository private and do not publish a GitHub Release.
 
-```bash
-scripts/check-v011-release-gate.py \
-  path/to/regret-replay-v011.json \
-  path/to/benchmark-tokyo-time-v011.json
-```
+## First public pre-release
 
-When the gates pass, publish within the same development session rather than waiting for a later feature release. The release title must include `experimental`, and GitHub must mark it as a pre-release.
+Publish `lasder-ca/aegis-acbs` only after the v0.11.1 gate passes. Promote the selected candidate in a follow-up tagged build, then publish it as a GitHub pre-release with source, binaries, checksums, SBOM, replay JSON/CSV/HTML, benchmark JSON/HTML, and documented limitations.
 
-## v0.12.0-alpha — promoted research preview
+## v0.12.0-alpha
 
-Promote to `alpha` only after:
+Require Tokyo, Yokohama, Osaka, and Nagoya distance/time matrices; at least 10 seeds and 10,000 queries per metric; 100% Dijkstra agreement; no city with more than 2% median or p95 regression; and written comparison against MM, NBS, DVCBS, BAE*, and MEET.
 
-- Tokyo, Yokohama, Osaka, and Nagoya distance/time matrices complete;
-- at least 10 seeds and 10,000 queries per metric are retained;
-- all routes match Dijkstra;
-- no city shows more than a 2% median or p95 regression from the best accepted ACBS version;
-- the exact stopping condition is compared in writing against MM, NBS, DVCBS, BAE*, and MEET;
-- a clean machine can reproduce the published benchmark from documented commands.
+## v1.0.0
 
-## v1.0.0 — stable
-
-Do not publish a stable release until:
-
-- an independent person reproduces correctness and at least one large-road benchmark;
-- the API and graph file format have a compatibility policy;
-- fuzzing and long-running parallel stress tests pass;
-- security reporting and supported-version policies are defined;
-- novelty claims, if any, are reviewed separately from engineering performance claims.
-
-Open-sourcing the code does not require claiming research novelty. The README should consistently describe ACBS as an experimental exact bidirectional shortest-path implementation until the novelty review is complete.
+Require independent reproduction, API and graph-format compatibility policy, fuzzing, long-running parallel stress, security policy, and a separately reviewed novelty claim.

@@ -8,12 +8,26 @@ import (
 )
 
 const (
-	acbsSchedulerVersion    = "edge-efficiency-v3"
-	acbsChordPotentialModel = "balanced-chord-v3"
-	acbsProjectionModel     = "balanced-projection-v1"
-	acbsLateGuardScheduler  = "edge-efficiency-v3-late-upper-bound-guard-v1"
-	acbsLateGuardStartChunk = uint64(48)
-	acbsLateGuardWindow     = 8
+	acbsSchedulerVersion        = "edge-efficiency-v3"
+	acbsChordPotentialModel     = "balanced-chord-v3"
+	acbsProjectionModel         = "balanced-projection-v1"
+	acbsLateGuardScheduler      = "edge-efficiency-v3-late-upper-bound-guard-v1"
+	acbsConnect32Scheduler      = "edge-efficiency-v3-connection-guard-32-until-upper-v1"
+	acbsConnect40Scheduler      = "edge-efficiency-v3-connection-guard-40-until-upper-v1"
+	acbsConnect32x16Scheduler   = "edge-efficiency-v3-connection-guard-32x16-v1"
+	acbsLateGuardStartChunk     = uint64(48)
+	acbsLateGuardWindow         = 8
+	acbsConnectionGuardWindow16 = 16
+)
+
+type acbsGuardMode uint8
+
+const (
+	acbsGuardNone acbsGuardMode = iota
+	acbsGuardLate48x8
+	acbsGuardConnect32UntilUpper
+	acbsGuardConnect40UntilUpper
+	acbsGuardConnect32x16
 )
 
 type acbsOptions struct {
@@ -21,7 +35,7 @@ type acbsOptions struct {
 	adaptive   bool
 	pruning    bool
 	projection bool
-	lateGuard  bool
+	guardMode  acbsGuardMode
 }
 
 func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
@@ -33,7 +47,19 @@ func acbs(ctx context.Context, g *graph.Graph, source, target int) (Result, erro
 }
 
 func acbsLateGuard(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
-	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisLateGuard, adaptive: true, pruning: false, lateGuard: true})
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisLateGuard, adaptive: true, pruning: false, guardMode: acbsGuardLate48x8})
+}
+
+func acbsConnect32(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisConnect32, adaptive: true, pruning: false, guardMode: acbsGuardConnect32UntilUpper})
+}
+
+func acbsConnect40(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisConnect40, adaptive: true, pruning: false, guardMode: acbsGuardConnect40UntilUpper})
+}
+
+func acbsConnect32x16(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
+	return acbsWithOptions(ctx, g, source, target, acbsOptions{algorithm: AegisConnect32x16, adaptive: true, pruning: false, guardMode: acbsGuardConnect32x16})
 }
 
 func acbsStatic(ctx context.Context, g *graph.Graph, source, target int) (Result, error) {
@@ -110,9 +136,10 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 	best, meet := inf, -1
 	bestReduced := inf
 	trace := acbsTraceFromContext(ctx)
-	lateGuardEligible := opts.lateGuard && lateUpperBoundGuardEligible(g, source, target)
-	lateGuardRemaining := 0
-	lateGuardTriggered := false
+	guardEligible := opts.guardMode != acbsGuardNone && connectionGuardEligible(g, source, target)
+	guardRemaining := 0
+	guardActive := false
+	guardTriggered := false
 	var scoreF, scoreB uint64
 	var sampledF, sampledB bool
 	lastDirection := byte(0)
@@ -143,19 +170,25 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 		}
 
 		guardTriggeredNow := false
-		if lateGuardEligible && !lateGuardTriggered && bestReduced == inf && shouldEngageLateUpperBoundGuard(
-			stats.Chunks, stats.DirectionSwitches, scoreF, scoreB, sampledF, sampledB,
+		if guardEligible && !guardTriggered && bestReduced == inf && shouldEngageConnectionGuard(
+			opts.guardMode, stats.Chunks, stats.DirectionSwitches, scoreF, scoreB, sampledF, sampledB,
 		) {
-			lateGuardRemaining = acbsLateGuardWindow
-			lateGuardTriggered = true
+			guardTriggered = true
+			guardActive = true
+			guardRemaining = connectionGuardMaxChunks(opts.guardMode)
 			guardTriggeredNow = true
-			stats.LateGuardActivations++
-			stats.LateGuardFirstChunk = stats.Chunks + 1
+			stats.ConnectionGuardActivations++
+			stats.ConnectionGuardFirstChunk = stats.Chunks + 1
+			stats.ConnectionGuardMode = connectionGuardName(opts.guardMode)
+			if opts.guardMode == acbsGuardLate48x8 {
+				stats.LateGuardActivations++
+				stats.LateGuardFirstChunk = stats.Chunks + 1
+			}
 		}
-		lateGuardActive := lateGuardRemaining > 0 && bestReduced == inf
+		connectionGuardActive := guardActive && bestReduced == inf
 
 		direction := byte(0)
-		if lateGuardActive {
+		if connectionGuardActive {
 			direction = chooseACBSStaticDirection(g, frontF, frontB, qf.Len(), qb.Len())
 		} else if opts.adaptive {
 			direction = chooseACBSDirection(
@@ -176,11 +209,14 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 		}
 
 		budget := acbsEdgeBudget(g.EdgeCount, scoreF, scoreB, direction, bestReduced != inf)
-		if !opts.adaptive || lateGuardActive {
+		if !opts.adaptive || connectionGuardActive {
 			budget = acbsBaseEdgeBudget(g.EdgeCount)
 		}
-		if lateGuardActive {
-			stats.LateGuardChunks++
+		if connectionGuardActive {
+			stats.ConnectionGuardChunks++
+			if opts.guardMode == acbsGuardLate48x8 {
+				stats.LateGuardChunks++
+			}
 		}
 		beforeLB := lowerBound
 		beforeRelaxed := stats.Relaxed
@@ -364,7 +400,10 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 				ForwardScoreAfter:   float64(scoreF) / 1_000_000.0,
 				BackwardScoreAfter:  float64(scoreB) / 1_000_000.0,
 				HadUpperBoundBefore: beforeBest != inf, HadUpperBoundAfter: best != inf,
-				LateGuardActive: lateGuardActive, LateGuardTriggered: guardTriggeredNow,
+				LateGuardActive:       opts.guardMode == acbsGuardLate48x8 && connectionGuardActive,
+				LateGuardTriggered:    opts.guardMode == acbsGuardLate48x8 && guardTriggeredNow,
+				ConnectionGuardActive: connectionGuardActive, ConnectionGuardTriggered: guardTriggeredNow,
+				ConnectionGuardMode: connectionGuardName(opts.guardMode),
 			}
 			if beforeBest != inf {
 				event.UpperBoundBefore = beforeBest
@@ -374,8 +413,15 @@ func acbsWithOptions(ctx context.Context, g *graph.Graph, source, target int, op
 			}
 			trace(event)
 		}
-		if lateGuardActive && lateGuardRemaining > 0 {
-			lateGuardRemaining--
+		if connectionGuardActive {
+			if bestReduced != inf {
+				guardActive = false
+			} else if guardRemaining > 0 {
+				guardRemaining--
+				if guardRemaining == 0 {
+					guardActive = false
+				}
+			}
 		}
 	}
 
@@ -549,8 +595,15 @@ func peekValid(q *radixHeap, dist []uint64, settled []bool, stats *Stats) (item,
 }
 
 func schedulerName(opts acbsOptions) string {
-	if opts.lateGuard {
+	switch opts.guardMode {
+	case acbsGuardLate48x8:
 		return acbsLateGuardScheduler
+	case acbsGuardConnect32UntilUpper:
+		return acbsConnect32Scheduler
+	case acbsGuardConnect40UntilUpper:
+		return acbsConnect40Scheduler
+	case acbsGuardConnect32x16:
+		return acbsConnect32x16Scheduler
 	}
 	if !opts.adaptive {
 		return "lower-key-static-v2"
@@ -561,19 +614,59 @@ func schedulerName(opts acbsOptions) string {
 	return acbsSchedulerVersion
 }
 
-func lateUpperBoundGuardEligible(g *graph.Graph, source, target int) bool {
+func connectionGuardEligible(g *graph.Graph, source, target int) bool {
 	_ = source
 	_ = target
 	return g.Metric == graph.MetricTime
 }
 
-func shouldEngageLateUpperBoundGuard(chunks, switches, scoreF, scoreB uint64, sampledF, sampledB bool) bool {
-	if chunks < acbsLateGuardStartChunk || !sampledF || !sampledB || scoreF == 0 || scoreB == 0 {
+func connectionGuardStartChunk(mode acbsGuardMode) uint64 {
+	switch mode {
+	case acbsGuardConnect32UntilUpper, acbsGuardConnect32x16:
+		return 32
+	case acbsGuardConnect40UntilUpper:
+		return 40
+	case acbsGuardLate48x8:
+		return acbsLateGuardStartChunk
+	default:
+		return math.MaxUint64
+	}
+}
+
+func connectionGuardMaxChunks(mode acbsGuardMode) int {
+	switch mode {
+	case acbsGuardLate48x8:
+		return acbsLateGuardWindow
+	case acbsGuardConnect32x16:
+		return acbsConnectionGuardWindow16
+	default:
+		return 0 // remain active until the first finite upper bound
+	}
+}
+
+func connectionGuardName(mode acbsGuardMode) string {
+	switch mode {
+	case acbsGuardLate48x8:
+		return "late-48x8"
+	case acbsGuardConnect32UntilUpper:
+		return "connect-32-until-upper"
+	case acbsGuardConnect40UntilUpper:
+		return "connect-40-until-upper"
+	case acbsGuardConnect32x16:
+		return "connect-32x16"
+	default:
+		return ""
+	}
+}
+
+func shouldEngageConnectionGuard(mode acbsGuardMode, chunks, switches, scoreF, scoreB uint64, sampledF, sampledB bool) bool {
+	if chunks < connectionGuardStartChunk(mode) || !sampledF || !sampledB || scoreF == 0 || scoreB == 0 {
 		return false
 	}
 	// Trigger only on long, oscillating searches whose two measured frontier
-	// efficiencies remain close. This targets the reproduced late-upper-bound
-	// scheduler tail without changing ordinary or clearly one-sided searches.
+	// efficiencies remain close. The connection variants begin earlier than
+	// the rejected v0.11 guard and stay balanced until an upper bound appears
+	// (or until the bounded candidate exhausts its 16-chunk window).
 	if switches*2 < chunks {
 		return false
 	}
@@ -582,6 +675,10 @@ func shouldEngageLateUpperBoundGuard(chunks, switches, scoreF, scoreB uint64, sa
 		hi, lo = lo, hi
 	}
 	return hi <= lo+lo/4
+}
+
+func shouldEngageLateUpperBoundGuard(chunks, switches, scoreF, scoreB uint64, sampledF, sampledB bool) bool {
+	return shouldEngageConnectionGuard(acbsGuardLate48x8, chunks, switches, scoreF, scoreB, sampledF, sampledB)
 }
 
 func chooseACBSStaticDirection(g *graph.Graph, frontF, frontB item, lenF, lenB int) byte {

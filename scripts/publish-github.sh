@@ -12,10 +12,15 @@ command -v gh >/dev/null || { echo "GitHub CLI (gh) is required" >&2; exit 1; }
 gh auth status
 git diff --quiet && git diff --cached --quiet || { echo "working tree must be clean" >&2; exit 1; }
 
-if [[ "$VERSION" == "0.11.0-experimental" ]]; then
-  : "${AEGIS_REPLAY_JSON:?set AEGIS_REPLAY_JSON to the v0.11 replay report}"
-  : "${AEGIS_BENCHMARK_JSON:?set AEGIS_BENCHMARK_JSON to the v0.11 10k benchmark report}"
-  scripts/check-v011-release-gate.py "$AEGIS_REPLAY_JSON" "$AEGIS_BENCHMARK_JSON"
+if [[ "$VERSION" == "0.11.1-experimental" ]]; then
+  : "${AEGIS_RELEASE_GATE_JSON:?set AEGIS_RELEASE_GATE_JSON to the v0.11.1 release-gate.json}"
+  python3 - "$AEGIS_RELEASE_GATE_JSON" <<'PY_GATE'
+import json, sys
+r=json.load(open(sys.argv[1], encoding="utf-8"))
+if not r.get("pass") or not r.get("selected"):
+    raise SystemExit("refusing to publish: v0.11.1 gate did not select a passing candidate")
+print("release gate selected:", r["selected"])
+PY_GATE
 fi
 
 scripts/build-release.sh

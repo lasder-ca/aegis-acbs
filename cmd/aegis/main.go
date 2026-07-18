@@ -243,7 +243,7 @@ func benchmark(args []string) error {
 		}
 		list = append(list, search.AegisStatic)
 		if *experimental {
-			list = append(list, search.AegisLateGuard, search.AegisPrune, search.AegisProjection)
+			list = append(list, search.AegisLateGuard, search.AegisConnect32, search.AegisConnect40, search.AegisConnect32x16, search.AegisPrune, search.AegisProjection)
 		}
 		list = append(list, search.Aegis)
 	}
@@ -494,11 +494,23 @@ func replayRegret(args []string) error {
 			return err
 		}
 	}
-	fmt.Printf("replay         requested=%d replayed=%d reproduced=%d scheduler-tail=%d persistent=%d not-reproduced=%d guard(improved/neutral/regressed)=%d/%d/%d guard-pass=%v correct=%v\n",
+	fmt.Printf("replay         requested=%d replayed=%d reproduced=%d scheduler-tail=%d persistent=%d not-reproduced=%d legacy-guard(improved/neutral/regressed)=%d/%d/%d legacy-pass=%v correct=%v\n",
 		report.RequestedCases, report.ReplayedCases, report.ReproducedMeaningful, report.AdaptiveSchedulerTail, report.PersistentClassical, report.NotReproduced, report.LateGuardImproved, report.LateGuardNeutral, report.LateGuardRegressed, report.LateGuardPass, report.AllCorrect)
+	for _, alg := range []search.Algorithm{search.AegisConnect32, search.AegisConnect40, search.AegisConnect32x16} {
+		c := report.GuardOutcomes[string(alg)]
+		fmt.Printf("guard          algorithm=%s improved=%d neutral=%d regressed=%d scheduler-tails=%d scheduler-pass=%v max-regression=%.3fms\n",
+			alg, c.Improved, c.Neutral, c.Regressed, c.SchedulerTails, c.SchedulerPass, float64(c.MaxRegressionNS)/1e6)
+	}
 	for _, c := range report.Cases {
-		fmt.Printf("case           run=%s query=%d class=%s original=%.3fx/%.3fms replay=%s %.3fx/%.3fms static=%.3fms guard=%.3fms(%s) classification=%s chunks=%d upper-chunk=%d\n",
-			c.SourceReport, c.QueryIndex, c.Class, c.OriginalRatio, float64(c.OriginalPenaltyNS)/1e6, c.FastestClassical, c.AegisRatio, float64(c.AegisPenaltyNS)/1e6, float64(c.StaticNS)/1e6, float64(c.LateGuardNS)/1e6, c.LateGuardOutcome, c.Classification, len(c.Trace), c.TraceUpperBoundChunk)
+		guards := ""
+		for _, g := range c.Guards {
+			if guards != "" {
+				guards += " "
+			}
+			guards += fmt.Sprintf("%s=%.3fms(%s)", g.Algorithm, float64(g.MedianNS)/1e6, g.Outcome)
+		}
+		fmt.Printf("case           run=%s query=%d class=%s original=%.3fx/%.3fms replay=%s %.3fx/%.3fms static=%.3fms legacy=%.3fms(%s) guards=[%s] classification=%s chunks=%d upper-chunk=%d\n",
+			c.SourceReport, c.QueryIndex, c.Class, c.OriginalRatio, float64(c.OriginalPenaltyNS)/1e6, c.FastestClassical, c.AegisRatio, float64(c.AegisPenaltyNS)/1e6, float64(c.StaticNS)/1e6, float64(c.LateGuardNS)/1e6, c.LateGuardOutcome, guards, c.Classification, len(c.Trace), c.TraceUpperBoundChunk)
 	}
 	fmt.Println("replay report:", *output)
 	if *csvOut != "" {

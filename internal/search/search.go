@@ -13,17 +13,20 @@ import (
 type Algorithm string
 
 const (
-	Dijkstra        Algorithm = "dijkstra"
-	BiDijkstra      Algorithm = "bidijkstra"
-	AStar           Algorithm = "astar"
-	Aegis           Algorithm = "aegis"
-	AegisStatic     Algorithm = "aegis-static"
-	AegisLateGuard  Algorithm = "aegis-late-guard"
-	AegisPrune      Algorithm = "aegis-prune"
-	AegisNoPrune    Algorithm = "aegis-no-prune" // deprecated compatibility alias for aegis
-	AegisProjection Algorithm = "aegis-projection"
-	Portfolio       Algorithm = "portfolio"
-	AegisRace       Algorithm = "aegis-race"
+	Dijkstra          Algorithm = "dijkstra"
+	BiDijkstra        Algorithm = "bidijkstra"
+	AStar             Algorithm = "astar"
+	Aegis             Algorithm = "aegis"
+	AegisStatic       Algorithm = "aegis-static"
+	AegisLateGuard    Algorithm = "aegis-late-guard"
+	AegisConnect32    Algorithm = "aegis-connect-32"
+	AegisConnect40    Algorithm = "aegis-connect-40"
+	AegisConnect32x16 Algorithm = "aegis-connect-32x16"
+	AegisPrune        Algorithm = "aegis-prune"
+	AegisNoPrune      Algorithm = "aegis-no-prune" // deprecated compatibility alias for aegis
+	AegisProjection   Algorithm = "aegis-projection"
+	Portfolio         Algorithm = "portfolio"
+	AegisRace         Algorithm = "aegis-race"
 )
 
 const policyVersion = "road-v3-time-aware"
@@ -48,44 +51,48 @@ type Decision struct {
 }
 
 type Stats struct {
-	Algorithm               Algorithm `json:"algorithm"`
-	Selected                Algorithm `json:"selected,omitempty"`
-	DurationNS              int64     `json:"durationNs"`
-	Expanded                uint64    `json:"expanded"`
-	Relaxed                 uint64    `json:"relaxed"`
-	QueuePushes             uint64    `json:"queuePushes"`
-	QueuePops               uint64    `json:"queuePops"`
-	StalePops               uint64    `json:"stalePops"`
-	Distance                uint64    `json:"distance"`
-	Reachable               bool      `json:"reachable"`
-	PathNodes               int       `json:"pathNodes"`
-	ForwardExpanded         uint64    `json:"forwardExpanded,omitempty"`
-	BackwardExpanded        uint64    `json:"backwardExpanded,omitempty"`
-	DirectionSwitches       uint64    `json:"directionSwitches,omitempty"`
-	LateGuardActivations    uint64    `json:"lateGuardActivations,omitempty"`
-	LateGuardChunks         uint64    `json:"lateGuardChunks,omitempty"`
-	LateGuardFirstChunk     uint64    `json:"lateGuardFirstChunk,omitempty"`
-	Chunks                  uint64    `json:"chunks,omitempty"`
-	FirstUpperBoundExpanded uint64    `json:"firstUpperBoundExpanded,omitempty"`
-	TerminationLowerBound   uint64    `json:"terminationLowerBound,omitempty"`
-	ForwardEfficiency       float64   `json:"forwardEfficiency,omitempty"`
-	BackwardEfficiency      float64   `json:"backwardEfficiency,omitempty"`
-	MeetingChecks           uint64    `json:"meetingChecks,omitempty"`
-	ConnectionChecks        uint64    `json:"connectionChecks,omitempty"`
-	FiniteMeetings          uint64    `json:"finiteMeetings,omitempty"`
-	UpperBoundUpdates       uint64    `json:"upperBoundUpdates,omitempty"`
-	PrunedAtPop             uint64    `json:"prunedAtPop,omitempty"`
-	PrunedAtRelax           uint64    `json:"prunedAtRelax,omitempty"`
-	BoundPruned             uint64    `json:"boundPruned,omitempty"`
-	PotentialEvaluations    uint64    `json:"potentialEvaluations,omitempty"`
-	BoundEvaluations        uint64    `json:"boundEvaluations,omitempty"`
-	UpperBound              uint64    `json:"upperBound,omitempty"`
-	LowerBound              uint64    `json:"lowerBound,omitempty"`
-	OptimalityGap           uint64    `json:"optimalityGap,omitempty"`
-	SchedulerVersion        string    `json:"schedulerVersion,omitempty"`
-	PotentialModel          string    `json:"potentialModel,omitempty"`
-	AllocBytes              uint64    `json:"allocBytes,omitempty"`
-	AllocObjects            uint64    `json:"allocObjects,omitempty"`
+	Algorithm                  Algorithm `json:"algorithm"`
+	Selected                   Algorithm `json:"selected,omitempty"`
+	DurationNS                 int64     `json:"durationNs"`
+	Expanded                   uint64    `json:"expanded"`
+	Relaxed                    uint64    `json:"relaxed"`
+	QueuePushes                uint64    `json:"queuePushes"`
+	QueuePops                  uint64    `json:"queuePops"`
+	StalePops                  uint64    `json:"stalePops"`
+	Distance                   uint64    `json:"distance"`
+	Reachable                  bool      `json:"reachable"`
+	PathNodes                  int       `json:"pathNodes"`
+	ForwardExpanded            uint64    `json:"forwardExpanded,omitempty"`
+	BackwardExpanded           uint64    `json:"backwardExpanded,omitempty"`
+	DirectionSwitches          uint64    `json:"directionSwitches,omitempty"`
+	LateGuardActivations       uint64    `json:"lateGuardActivations,omitempty"`
+	LateGuardChunks            uint64    `json:"lateGuardChunks,omitempty"`
+	LateGuardFirstChunk        uint64    `json:"lateGuardFirstChunk,omitempty"`
+	ConnectionGuardActivations uint64    `json:"connectionGuardActivations,omitempty"`
+	ConnectionGuardChunks      uint64    `json:"connectionGuardChunks,omitempty"`
+	ConnectionGuardFirstChunk  uint64    `json:"connectionGuardFirstChunk,omitempty"`
+	ConnectionGuardMode        string    `json:"connectionGuardMode,omitempty"`
+	Chunks                     uint64    `json:"chunks,omitempty"`
+	FirstUpperBoundExpanded    uint64    `json:"firstUpperBoundExpanded,omitempty"`
+	TerminationLowerBound      uint64    `json:"terminationLowerBound,omitempty"`
+	ForwardEfficiency          float64   `json:"forwardEfficiency,omitempty"`
+	BackwardEfficiency         float64   `json:"backwardEfficiency,omitempty"`
+	MeetingChecks              uint64    `json:"meetingChecks,omitempty"`
+	ConnectionChecks           uint64    `json:"connectionChecks,omitempty"`
+	FiniteMeetings             uint64    `json:"finiteMeetings,omitempty"`
+	UpperBoundUpdates          uint64    `json:"upperBoundUpdates,omitempty"`
+	PrunedAtPop                uint64    `json:"prunedAtPop,omitempty"`
+	PrunedAtRelax              uint64    `json:"prunedAtRelax,omitempty"`
+	BoundPruned                uint64    `json:"boundPruned,omitempty"`
+	PotentialEvaluations       uint64    `json:"potentialEvaluations,omitempty"`
+	BoundEvaluations           uint64    `json:"boundEvaluations,omitempty"`
+	UpperBound                 uint64    `json:"upperBound,omitempty"`
+	LowerBound                 uint64    `json:"lowerBound,omitempty"`
+	OptimalityGap              uint64    `json:"optimalityGap,omitempty"`
+	SchedulerVersion           string    `json:"schedulerVersion,omitempty"`
+	PotentialModel             string    `json:"potentialModel,omitempty"`
+	AllocBytes                 uint64    `json:"allocBytes,omitempty"`
+	AllocObjects               uint64    `json:"allocObjects,omitempty"`
 }
 
 type Result struct {
@@ -116,6 +123,12 @@ func Run(ctx context.Context, g *graph.Graph, source, target int, alg Algorithm)
 		r, err = acbsStatic(ctx, g, source, target)
 	case AegisLateGuard:
 		r, err = acbsLateGuard(ctx, g, source, target)
+	case AegisConnect32:
+		r, err = acbsConnect32(ctx, g, source, target)
+	case AegisConnect40:
+		r, err = acbsConnect40(ctx, g, source, target)
+	case AegisConnect32x16:
+		r, err = acbsConnect32x16(ctx, g, source, target)
 	case AegisPrune:
 		r, err = acbsPrune(ctx, g, source, target)
 	case AegisNoPrune:

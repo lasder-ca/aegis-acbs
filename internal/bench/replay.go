@@ -28,6 +28,24 @@ type RegretReplayConfig struct {
 	Top            int           `json:"top"`
 }
 
+type ReplayGuardSummary struct {
+	Algorithm    search.Algorithm `json:"algorithm"`
+	MedianNS     int64            `json:"medianNs"`
+	VsAegis      float64          `json:"vsAegis"`
+	AdvantageNS  int64            `json:"advantageNs"`
+	RegressionNS int64            `json:"regressionNs"`
+	Outcome      string           `json:"outcome"`
+}
+
+type ReplayGuardOutcomeCounts struct {
+	Improved        int   `json:"improved"`
+	Neutral         int   `json:"neutral"`
+	Regressed       int   `json:"regressed"`
+	SchedulerTails  int   `json:"schedulerTails"`
+	SchedulerPass   bool  `json:"schedulerPass"`
+	MaxRegressionNS int64 `json:"maxRegressionNs"`
+}
+
 type ReplayAlgorithmSummary struct {
 	Algorithm      search.Algorithm `json:"algorithm"`
 	Runs           int              `json:"runs"`
@@ -68,6 +86,7 @@ type RegretReplayCase struct {
 	LateGuardAdvantageNS  int64                    `json:"lateGuardAdvantageNs"`
 	LateGuardRegressionNS int64                    `json:"lateGuardRegressionNs"`
 	LateGuardOutcome      string                   `json:"lateGuardOutcome"`
+	Guards                []ReplayGuardSummary     `json:"guards,omitempty"`
 	Classification        string                   `json:"classification"`
 	AllCorrect            bool                     `json:"allCorrect"`
 	Trace                 []search.ACBSTraceEvent  `json:"trace"`
@@ -75,25 +94,26 @@ type RegretReplayCase struct {
 }
 
 type RegretReplayReport struct {
-	Version               string             `json:"version"`
-	GeneratedAt           time.Time          `json:"generatedAt"`
-	AegisVersion          string             `json:"aegisVersion"`
-	GraphName             string             `json:"graphName"`
-	Metric                string             `json:"metric"`
-	ValidationPath        string             `json:"validationPath"`
-	Config                RegretReplayConfig `json:"config"`
-	Cases                 []RegretReplayCase `json:"cases"`
-	RequestedCases        int                `json:"requestedCases"`
-	ReplayedCases         int                `json:"replayedCases"`
-	ReproducedMeaningful  int                `json:"reproducedMeaningful"`
-	AdaptiveSchedulerTail int                `json:"adaptiveSchedulerTail"`
-	PersistentClassical   int                `json:"persistentClassical"`
-	NotReproduced         int                `json:"notReproduced"`
-	LateGuardImproved     int                `json:"lateGuardImproved"`
-	LateGuardNeutral      int                `json:"lateGuardNeutral"`
-	LateGuardRegressed    int                `json:"lateGuardRegressed"`
-	LateGuardPass         bool               `json:"lateGuardPass"`
-	AllCorrect            bool               `json:"allCorrect"`
+	Version               string                              `json:"version"`
+	GeneratedAt           time.Time                           `json:"generatedAt"`
+	AegisVersion          string                              `json:"aegisVersion"`
+	GraphName             string                              `json:"graphName"`
+	Metric                string                              `json:"metric"`
+	ValidationPath        string                              `json:"validationPath"`
+	Config                RegretReplayConfig                  `json:"config"`
+	Cases                 []RegretReplayCase                  `json:"cases"`
+	RequestedCases        int                                 `json:"requestedCases"`
+	ReplayedCases         int                                 `json:"replayedCases"`
+	ReproducedMeaningful  int                                 `json:"reproducedMeaningful"`
+	AdaptiveSchedulerTail int                                 `json:"adaptiveSchedulerTail"`
+	PersistentClassical   int                                 `json:"persistentClassical"`
+	NotReproduced         int                                 `json:"notReproduced"`
+	LateGuardImproved     int                                 `json:"lateGuardImproved"`
+	LateGuardNeutral      int                                 `json:"lateGuardNeutral"`
+	LateGuardRegressed    int                                 `json:"lateGuardRegressed"`
+	LateGuardPass         bool                                `json:"lateGuardPass"`
+	GuardOutcomes         map[string]ReplayGuardOutcomeCounts `json:"guardOutcomes,omitempty"`
+	AllCorrect            bool                                `json:"allCorrect"`
 }
 
 func LoadRegretValidation(path string) (RegretValidationReport, error) {
@@ -153,12 +173,16 @@ func ReplayRegret(ctx context.Context, g *graph.Graph, validationPath, inputRoot
 		Version: "regret-replay-v1", GeneratedAt: time.Now().UTC(), AegisVersion: version.Version,
 		GraphName: g.Name, Metric: string(g.Metric), ValidationPath: validationPath,
 		Config: cfg, RequestedCases: len(rows), AllCorrect: true, LateGuardPass: true,
+		GuardOutcomes: map[string]ReplayGuardOutcomeCounts{},
+	}
+	for _, alg := range connectionGuardCandidates() {
+		out.GuardOutcomes[string(alg)] = ReplayGuardOutcomeCounts{SchedulerPass: true}
 	}
 	if len(rows) == 0 {
 		return out, nil
 	}
 
-	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.AegisStatic, search.AegisLateGuard, search.Aegis}
+	algs := []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.AegisStatic, search.AegisLateGuard, search.AegisConnect32, search.AegisConnect40, search.AegisConnect32x16, search.Aegis}
 	for caseIndex, top := range rows {
 		reportPath := filepath.Join(absRoot, filepath.FromSlash(top.Path))
 		sourceReport, err := LoadReport(reportPath)
@@ -216,8 +240,36 @@ func ReplayRegret(ctx context.Context, g *graph.Graph, validationPath, inputRoot
 		if caseReport.LateGuardRegressionNS >= cfg.PenaltyFloorNS {
 			out.LateGuardPass = false
 		}
+		for _, guard := range caseReport.Guards {
+			counts := out.GuardOutcomes[string(guard.Algorithm)]
+			if caseReport.Classification == "adaptive-scheduler-tail" {
+				counts.SchedulerTails++
+				if guard.Outcome != "improved" {
+					counts.SchedulerPass = false
+				}
+			}
+			switch guard.Outcome {
+			case "improved":
+				counts.Improved++
+			case "regressed":
+				counts.Regressed++
+			default:
+				counts.Neutral++
+			}
+			if guard.RegressionNS > counts.MaxRegressionNS {
+				counts.MaxRegressionNS = guard.RegressionNS
+			}
+			if guard.RegressionNS >= cfg.PenaltyFloorNS {
+				counts.SchedulerPass = false
+			}
+			out.GuardOutcomes[string(guard.Algorithm)] = counts
+		}
 	}
 	return out, nil
+}
+
+func connectionGuardCandidates() []search.Algorithm {
+	return []search.Algorithm{search.AegisConnect32, search.AegisConnect40, search.AegisConnect32x16}
 }
 
 func replayOneCase(ctx context.Context, g *graph.Graph, q Query, algs []search.Algorithm, cfg RegretReplayConfig, caseIndex int) (RegretReplayCase, error) {
@@ -332,6 +384,31 @@ func replayOneCase(ctx context.Context, g *graph.Graph, q Query, algs []search.A
 			out.LateGuardOutcome = "neutral"
 		}
 	}
+	for _, alg := range connectionGuardCandidates() {
+		guard := summaries[alg]
+		g := ReplayGuardSummary{Algorithm: alg, MedianNS: guard.MedianNS}
+		if out.AegisNS > 0 && g.MedianNS > 0 {
+			g.VsAegis = float64(g.MedianNS) / float64(out.AegisNS)
+			g.AdvantageNS = out.AegisNS - g.MedianNS
+			if g.AdvantageNS < 0 {
+				g.RegressionNS = -g.AdvantageNS
+				g.AdvantageNS = 0
+			}
+			guardFloor := cfg.PenaltyFloorNS / 2
+			if guardFloor < int64(250*time.Microsecond) {
+				guardFloor = int64(250 * time.Microsecond)
+			}
+			switch {
+			case g.AdvantageNS >= guardFloor:
+				g.Outcome = "improved"
+			case g.RegressionNS >= cfg.PenaltyFloorNS:
+				g.Outcome = "regressed"
+			default:
+				g.Outcome = "neutral"
+			}
+		}
+		out.Guards = append(out.Guards, g)
+	}
 	out.ReplayMeaningful = out.AegisRatio >= cfg.RatioThreshold && out.AegisPenaltyNS >= cfg.PenaltyFloorNS
 	switch {
 	case !out.ReplayMeaningful:
@@ -389,7 +466,7 @@ func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
 	defer f.Close()
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	if err := w.Write([]string{"source_report", "query_index", "class", "source_id", "target_id", "distance_km", "original_baseline", "original_ratio", "original_penalty_ms", "replay_baseline", "aegis_median_ms", "baseline_median_ms", "replay_ratio", "replay_penalty_ms", "static_median_ms", "static_vs_aegis", "late_guard_median_ms", "late_guard_vs_aegis", "late_guard_advantage_ms", "late_guard_regression_ms", "late_guard_outcome", "classification", "trace_chunks", "upper_bound_chunk", "all_correct"}); err != nil {
+	if err := w.Write([]string{"source_report", "query_index", "class", "source_id", "target_id", "distance_km", "original_baseline", "original_ratio", "original_penalty_ms", "replay_baseline", "aegis_median_ms", "baseline_median_ms", "replay_ratio", "replay_penalty_ms", "static_median_ms", "static_vs_aegis", "late_guard_median_ms", "late_guard_vs_aegis", "late_guard_advantage_ms", "late_guard_regression_ms", "late_guard_outcome", "connect_32_ms", "connect_32_outcome", "connect_40_ms", "connect_40_outcome", "connect_32x16_ms", "connect_32x16_outcome", "classification", "trace_chunks", "upper_bound_chunk", "all_correct"}); err != nil {
 		return err
 	}
 	for _, c := range report.Cases {
@@ -397,7 +474,7 @@ func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
 			c.SourceReport, strconv.Itoa(c.QueryIndex), c.Class, strconv.FormatInt(c.SourceID, 10), strconv.FormatInt(c.TargetID, 10),
 			fmt.Sprintf("%.6f", c.StraightLineMeters/1000), string(c.OriginalBaseline), fmt.Sprintf("%.6f", c.OriginalRatio), fmt.Sprintf("%.6f", float64(c.OriginalPenaltyNS)/1e6),
 			string(c.FastestClassical), fmt.Sprintf("%.6f", float64(c.AegisNS)/1e6), fmt.Sprintf("%.6f", float64(c.FastestClassicalNS)/1e6), fmt.Sprintf("%.6f", c.AegisRatio), fmt.Sprintf("%.6f", float64(c.AegisPenaltyNS)/1e6),
-			fmt.Sprintf("%.6f", float64(c.StaticNS)/1e6), fmt.Sprintf("%.6f", c.StaticVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardNS)/1e6), fmt.Sprintf("%.6f", c.LateGuardVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardAdvantageNS)/1e6), fmt.Sprintf("%.6f", float64(c.LateGuardRegressionNS)/1e6), c.LateGuardOutcome, c.Classification, strconv.Itoa(len(c.Trace)), strconv.FormatUint(c.TraceUpperBoundChunk, 10), strconv.FormatBool(c.AllCorrect),
+			fmt.Sprintf("%.6f", float64(c.StaticNS)/1e6), fmt.Sprintf("%.6f", c.StaticVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardNS)/1e6), fmt.Sprintf("%.6f", c.LateGuardVsAegis), fmt.Sprintf("%.6f", float64(c.LateGuardAdvantageNS)/1e6), fmt.Sprintf("%.6f", float64(c.LateGuardRegressionNS)/1e6), c.LateGuardOutcome, guardMS(c, search.AegisConnect32), guardOutcome(c, search.AegisConnect32), guardMS(c, search.AegisConnect40), guardOutcome(c, search.AegisConnect40), guardMS(c, search.AegisConnect32x16), guardOutcome(c, search.AegisConnect32x16), c.Classification, strconv.Itoa(len(c.Trace)), strconv.FormatUint(c.TraceUpperBoundChunk, 10), strconv.FormatBool(c.AllCorrect),
 		}
 		if err := w.Write(record); err != nil {
 			return err
@@ -408,6 +485,31 @@ func WriteRegretReplayCSV(path string, report RegretReplayReport) error {
 
 // Stable ordering is useful for downstream diffing even if callers construct a
 // report manually.
+func replayGuard(c RegretReplayCase, alg search.Algorithm) (ReplayGuardSummary, bool) {
+	for _, g := range c.Guards {
+		if g.Algorithm == alg {
+			return g, true
+		}
+	}
+	return ReplayGuardSummary{}, false
+}
+
+func guardMS(c RegretReplayCase, alg search.Algorithm) string {
+	g, ok := replayGuard(c, alg)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%.6f", float64(g.MedianNS)/1e6)
+}
+
+func guardOutcome(c RegretReplayCase, alg search.Algorithm) string {
+	g, ok := replayGuard(c, alg)
+	if !ok {
+		return ""
+	}
+	return g.Outcome
+}
+
 func SortRegretReplayCases(report *RegretReplayReport) {
 	sort.Slice(report.Cases, func(i, j int) bool {
 		if report.Cases[i].Classification != report.Cases[j].Classification {

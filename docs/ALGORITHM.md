@@ -191,3 +191,8 @@ The guard is eligible only when all of the following hold:
 - the two efficiency estimates differ by no more than 25%.
 
 When eligible, the search uses the static lower-key scheduler and base edge budget for at most eight chunks. It does not change reduced costs, the incumbent, the coupled lower bound, or the stopping condition, so exactness is unchanged. The experiment remains separate from `aegis` until the release gates in `docs/RELEASE_PLAN.md` pass.
+
+
+## Experimental connection guards (v0.11.1)
+
+The v0.11.0 late guard did not materially improve the reproduced scheduler tail. v0.11.1 therefore evaluates three earlier or longer balanced-scheduling intervals. They modify scheduling only; feasible potentials, upper/lower bounds, termination, and exactness are unchanged. None is part of the default `aegis` algorithm until the Tokyo release gate selects it.
