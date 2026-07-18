@@ -1,38 +1,37 @@
 # Aegis ACBS v0.1.0
 
-This is the first public research preview of Aegis Coupled-Bound Search.
+`v0.1.0` is the first public release of Aegis Coupled-Bound Search, an exact bidirectional shortest-path research implementation for weighted directed road graphs.
 
-The default `aegis` search is unchanged from v0.11.2. No rejected guard or in-sample trigger rule has been promoted into the scheduler.
+## Included in this release
 
-## Public evidence
+- The adaptive `aegis` search and the `aegis-static` scheduler ablation.
+- OSM XML, DIMACS, and Aegis binary-graph import support.
+- Route, benchmark, stress, diagnosis, isolated replay, trigger profiling, and matrix aggregation commands.
+- JSON, CSV, and self-contained HTML reports.
+- Linux amd64/arm64, Windows amd64, and macOS amd64 builds.
+- SHA-256 checksums, source archives, a Git bundle, and a CycloneDX SBOM.
 
-The release publishes both successful and failed Tokyo time-graph experiments:
+## Published evidence
 
-- 10,000/10,000 query distances matched Dijkstra.
-- 11 queries initially met the predeclared meaningful-slowdown threshold.
+The repository includes the raw artifacts from a 10,000-query Tokyo travel-time graph experiment:
+
+- 10,000/10,000 shortest-path distances matched Dijkstra.
+- 11 queries crossed the predefined meaningful-slowdown threshold in the initial suite.
 - Isolated replay retained one adaptive-scheduler tail and one persistent classical tail; nine cases did not reproduce.
-- Three connection-guard candidates were rejected by a predeclared release gate.
-- Whole-suite profiling found an in-sample checkpoint-48 rule matching the one scheduler tail with zero same-suite false positives.
-- The rule remains diagnostic because it has not been validated on an independent city or seed suite.
+- Three connection-guard candidates were rejected by the predefined acceptance gate.
+- Whole-suite profiling found one same-suite checkpoint rule matching the scheduler tail with no observed false positives.
 
-See `docs/TOKYO_EVIDENCE.md` and `research/tokyo-time-2026-07-18/`.
+The checkpoint rule remains diagnostic. It was discovered and evaluated on the same dataset and is not part of the default scheduler.
 
-## Repository hardening
+See [Tokyo evidence](docs/TOKYO_EVIDENCE.md) and `research/tokyo-time-2026-07-18/`.
 
-- English primary README and Japanese README.
-- CI on Linux, Windows, and macOS using the current Go toolchain, plus Go 1.23 compatibility testing.
-- Race detector, formatting, vet, cross-build, shell syntax, and Python syntax checks.
-- Release creation uses GitHub CLI directly rather than a third-party release action.
-- Release publication refuses to proceed without the imported raw Tokyo evidence and a clean worktree.
-- Release assets include checksums, a CycloneDX SBOM, source archives, a Git bundle, binaries, and offline reports.
+## Validation and release controls
 
-## Non-claims
+- CI runs on Linux, Windows, and macOS.
+- Go 1.23 compatibility and the current Go toolchain are tested.
+- Linux race detection, `go vet`, formatting, cross-build, shell syntax, and Python syntax checks are included.
+- Release publication verifies the imported Tokyo artifacts before creating a tag or uploading assets.
 
-This release does not claim:
+## Scope
 
-- academic novelty,
-- universal correctness over every graph,
-- universal performance superiority,
-- or that the selected Tokyo trigger generalizes.
-
-The repository is intended for reproducible review and independent validation.
+This release is intended for reproducible review and independent testing. It does not establish universal performance superiority, universal correctness over every possible graph, academic novelty, or generalization of the Tokyo diagnostic trigger.

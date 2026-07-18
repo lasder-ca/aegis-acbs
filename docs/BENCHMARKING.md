@@ -2,7 +2,7 @@
 
 ## Principles
 
-Dijkstra is the correctness reference and is run outside timed samples. Starting in v0.4, algorithms are interleaved inside every repetition. A deterministic shuffle derived from the seed, query index, and repeat index changes the order while preserving exact reproducibility.
+Dijkstra is the correctness reference and is run outside timed samples. Algorithms are interleaved inside every repetition. A deterministic shuffle derived from the seed, query index, and repeat index changes the order while preserving reproducibility.
 
 ```text
 for each query:
@@ -12,7 +12,7 @@ for each query:
   retain the median repetition for each algorithm
 ```
 
-Use `--order rotated` only when comparing directly with v0.3 methodology.
+Use `--order rotated` only when comparing directly with the earlier rotated-order methodology.
 
 ## Latency
 
@@ -26,6 +26,8 @@ Reports contain query-level:
 - `p99Ns`
 
 Each query-level value is the median of its repeated inner measurements. Aggregate percentiles are then computed across queries.
+
+Very small synthetic fixtures can approach the resolution of the platform timer. Publication-scale latency claims should use realistic graphs, repeated measurements, and absolute-time thresholds rather than ratios alone.
 
 ## Memory
 
@@ -45,7 +47,7 @@ The report also records process-wide:
 - `goMallocs`
 - `goNumGc`
 
-Peak RSS includes the graph, all algorithms used by the process, Go runtime, and report data. For an ACBS-only process measurement:
+Peak RSS includes the graph, all algorithms used by the process, the Go runtime, and report data. Linux and macOS report peak RSS directly; unsupported platforms currently record `peakRssBytes` as `0` while the Go heap and allocation counters remain available. For an ACBS-only process measurement:
 
 ```bash
 scripts/memory-profile.sh path/to/graph.aegis
@@ -88,7 +90,7 @@ boundPruned = prunedAtPop + prunedAtRelax
 
 ## Publication-scale validation
 
-The default research suite uses Tokyo, Yokohama, Osaka, and Nagoya, both distance and time graphs, ten seeds, and 1,000 queries per seed:
+The research matrix supports Tokyo, Yokohama, Osaka, and Nagoya, with distance and travel-time graphs, multiple seeds, and independently stored reports:
 
 ```bash
 scripts/validate-research.sh
@@ -108,13 +110,13 @@ Record CPU model, governor, temperature policy, OS, Go version, graph checksum, 
 
 ## Steady-state allocation regression
 
-v0.5 adds a search-core benchmark that warms the pooled workspace before measuring ACBS. Run:
+The search-core benchmark warms the pooled workspace before measuring ACBS:
 
 ```bash
 go test ./internal/search -run '^$' -bench '^BenchmarkACBSLargeGrid$' -benchmem
 ```
 
-For a direct v0.4/v0.5 comparison using identical temporary benchmark code and isolated Git worktrees:
+For a direct comparison between two revisions using identical temporary benchmark code and isolated Git worktrees:
 
 ```bash
 scripts/compare-allocations.sh
@@ -122,9 +124,9 @@ scripts/compare-allocations.sh
 
 The generated grid fixture isolates queue and path allocation behavior. It does not replace the real OSM-derived city matrix for algorithm-performance claims. Queue backing arrays are retained after warm-up, so lower `B/op` and `allocs/op` should be evaluated together with ACBS-only peak RSS.
 
-## Experimental pruning and dual-potential comparison
+## Experimental variants
 
-The default research set only isolates the scheduler. Add experimental mechanisms explicitly:
+The default research set isolates the scheduler. Other mechanisms can be added explicitly:
 
 ```bash
 aegis benchmark \
@@ -134,11 +136,11 @@ aegis benchmark \
   --measure-memory
 ```
 
-Do not merge the two ACBS variants into a selector for publication results. Report each variant's latency and work counters separately. A projection speedup accompanied by substantially higher expansion counts should be described as an implementation tradeoff rather than a stronger heuristic.
+Publication reports list each ACBS variant separately and exclude selector results from the main comparison. A projection speedup accompanied by substantially higher expansion counts is an implementation tradeoff rather than evidence of a stronger heuristic.
 
 ## Concurrent and soak validation
 
-Use the in-process stress runner to exercise pooled workspaces under real goroutine concurrency:
+Use the in-process stress runner to exercise pooled workspaces under goroutine concurrency:
 
 ```bash
 GOMAXPROCS=8 aegis stress \
@@ -155,7 +157,7 @@ scripts/stress-matrix.sh city.aegis artifacts/stress
 scripts/soak.sh city.aegis artifacts/soak
 ```
 
-Report throughput together with p95/p99 and peak RSS. A throughput increase accompanied by exploding p99 or RSS is not considered a successful scaling result.
+Report throughput together with p95, p99, and peak RSS. A throughput increase accompanied by substantially worse p99 or RSS should be treated as a tradeoff rather than a clean scaling improvement.
 
 ## Regret diagnosis
 
@@ -171,8 +173,7 @@ aegis diagnose \
   --html regret.html
 ```
 
-The ratio threshold alone is insufficient on very short queries. By default a query is marked meaningful only when ACBS is at least 1.25x slower than the fastest classical baseline **and** loses at least 1 ms in absolute time.
-
+The ratio threshold alone is insufficient on very short queries. By default a query is marked meaningful only when ACBS is at least 1.25 times slower than the fastest classical baseline and loses at least 1 ms in absolute time.
 
 ## Multi-seed meaningful-slowdown validation
 
@@ -195,13 +196,11 @@ aegis validate-regret \
   --max-meaningful-rate 0
 ```
 
-Report both the observed event rate and its 95% interval. When zero events are observed, also report the exact one-sided upper bound `1 - 0.05^(1/N)`. At N=10,000 this is approximately 0.02995%, not proof that the true rate is zero.
+Report both the observed event rate and its 95% interval. When zero events are observed, also report the exact one-sided upper bound `1 - 0.05^(1/N)`. At `N=10,000` this is approximately `0.02995%`, not proof that the true rate is zero.
 
 ## Isolated tail replay
 
-Large validation matrices can retain a small set of meaningful slowdowns in
-`regret-validation.json`. Do not tune the production scheduler directly from a
-single timed sample. Replay the retained cases first:
+Large validation matrices can retain a small set of meaningful slowdowns in `regret-validation.json`. A retained timed sample is first replayed in isolation before it is used to propose a scheduler change:
 
 ```bash
 aegis replay-regret \
@@ -215,15 +214,12 @@ aegis replay-regret \
   --html validation/regret-replay.html
 ```
 
-Each case is measured with Dijkstra, bidirectional Dijkstra, A*, static ACBS,
-and adaptive ACBS in a rotated interleaved order. The timed runs do not record
-traces. A separate untimed ACBS run then records one event per scheduler chunk.
+Each case is measured with Dijkstra, bidirectional Dijkstra, A*, static ACBS, and adaptive ACBS in a rotated interleaved order. Timed runs do not record traces. A separate untimed ACBS run records one event per scheduler chunk.
 
-The replay classification is evidence, not an automatic policy change:
+Replay classifications are evidence for analysis:
 
-- `not-reproduced` indicates that the validation outlier did not survive repeated isolated measurement.
-- `adaptive-scheduler-tail` indicates that static ACBS materially beat adaptive ACBS under the configured absolute floor.
-- `persistent-classical-tail` indicates that a classical method remained faster, but static scheduling did not explain the difference.
+- `not-reproduced`: the validation outlier did not survive repeated isolated measurement.
+- `adaptive-scheduler-tail`: static ACBS materially beat adaptive ACBS under the configured absolute floor.
+- `persistent-classical-tail`: a classical method remained faster, but static scheduling did not explain the difference.
 
-Only repeated `adaptive-scheduler-tail` cases with a shared trace pattern should
-be used to propose a narrow scheduler modification.
+Repeated adaptive-scheduler tails with a shared trace pattern can support a narrowly defined scheduler experiment. Any proposed change is then evaluated against a predefined whole-suite gate.
