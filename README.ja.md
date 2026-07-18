@@ -10,17 +10,17 @@
 
 [![CI](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml/badge.svg)](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white)
-![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-555)
-![Status](https://img.shields.io/badge/status-research%20prototype-7c3aed)
+![対応OS](https://img.shields.io/badge/対応OS-Linux%20%7C%20Windows%20%7C%20macOS-555)
+![開発段階](https://img.shields.io/badge/開発段階-研究プロトタイプ-7c3aed)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-[English](README.md) · [ドキュメント一覧](docs/README.md) · [アルゴリズム](docs/ALGORITHM.md) · [東京検証](docs/TOKYO_EVIDENCE.md)
+[English](README.md) · [技術ドキュメント](docs/README.md) · [アルゴリズム](docs/ALGORITHM.md) · [東京検証](docs/TOKYO_EVIDENCE.md)
 
 </div>
 
 ---
 
-Aegis Coupled-Bound Searchは、始点側と終点側のfrontierを1つの厳密探索として進めます。両方向で許容下界を共有し、発見済みの最良完全経路を上界として維持します。適応schedulerは、下界をより効率よく押し上げている側へ次の辺処理chunkを配分します。
+Aegis Coupled-Bound Searchは、始点側と終点側の探索境界（frontier）を1つの厳密探索として進めます。両方向で許容下界を共有し、発見済みの最良完全経路を上界として維持します。適応schedulerは、下界をより効率よく押し上げている側へ次の辺処理単位（chunk）を配分します。
 
 > [!IMPORTANT]
 > ACBSは、再現可能な研究プロトタイプとして公開しています。学術的新規性と、他の道路網への性能一般化は第三者検証前です。
@@ -29,7 +29,7 @@ Aegis Coupled-Bound Searchは、始点側と終点側のfrontierを1つの厳密
 
 | 厳密な経路探索 | 適応的な探索配分 | 道路グラフ対応 | 再現可能な評価 |
 |:--|:--|:--|:--|
-| 有限・非負重みの有向グラフで最短経路を返します。 | 最短性の証明を変えず、前後frontierの辺処理量を動的に調整します。 | OSM XMLとDIMACSを取り込み、Aegisバイナリグラフへ変換します。 | benchmark、tail解析、trigger解析をJSON、CSV、単体HTMLで保存します。 |
+| 有限・非負重みの有向グラフで最短経路を返します。 | 最短性の証明を変えず、前後frontierの辺処理量を動的に調整します。 | OSM XMLとDIMACSを取り込み、Aegisバイナリグラフへ変換します。 | ベンチマーク、tail解析、trigger解析をJSON、CSV、単体HTMLで保存します。 |
 
 ## ACBSが答えを確定するまで
 
@@ -37,7 +37,7 @@ Aegis Coupled-Bound Searchは、始点側と終点側のfrontierを1つの厳密
 flowchart LR
     S((始点)) --> F[前向きfrontier]
     T((終点)) --> B[後ろ向きfrontier]
-    P[balanced admissible potential] --> F
+    P[均衡した許容potential] --> F
     P --> B
     F --> C[接続候補]
     B --> C
@@ -46,10 +46,10 @@ flowchart LR
     B --> L
     L --> G{L ≥ U?}
     U --> G
-    G -- No --> A[次の辺処理chunkを配分]
+    G -- いいえ --> A[次の辺処理chunkを配分]
     A --> F
     A --> B
-    G -- Yes --> R[厳密な最短経路を返す]
+    G -- はい --> R[厳密な最短経路を返す]
 ```
 
 schedulerが変えるのは探索順序だけです。許容potential、共有下界、発見済み経路、厳密な停止条件は変更しません。
@@ -125,8 +125,8 @@ bin/aegis benchmark \
 | 評価 | `benchmark`, `stress` | 反復測定と並行負荷試験 |
 | tail解析 | `diagnose`, `replay-regret` | クエリ単位のslowdownを検出・隔離 |
 | scheduler研究 | `profile-trigger` | checkpointごとのfrontier特徴量を記録 |
-| 集約 | `aggregate` | 複数seedのbenchmark matrixを生成 |
-| local UI | `serve` | local HTTP interfaceを起動 |
+| 集約 | `aggregate` | 複数seedのベンチマーク行列を生成 |
+| ローカルUI | `serve` | ローカルHTTPインターフェースを起動 |
 
 標準比較にはDijkstra、双方向Dijkstra、地理A*、固定scheduler版ACBS、適応scheduler版ACBSを含めます。不採用の実験変種は、結果を再現できるようにする目的だけで残しています。
 
@@ -163,60 +163,24 @@ bin/aegis profile-trigger \
 
 </details>
 
-## ドキュメント
+## 技術ドキュメント
 
 <div align="center">
 
-**[すべての技術文書を一覧で見る →](docs/README.md)**
+**[8分野の技術文書を一覧で見る →](docs/README.md)**
 
 </div>
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 仕組みを理解する
-
-- **[アルゴリズム](docs/ALGORITHM.md)**  
-  状態、上下界、potential、scheduler、停止条件
-- **[正確性](docs/CORRECTNESS.md)**  
-  最短性の根拠、不変条件、補題、機械検査
-- **[関連研究](docs/RELATED_WORK.md)**  
-  既存の双方向探索研究との関係、主張の境界
-
-</td>
-<td width="50%" valign="top">
-
-### 実験を理解・再現する
-
-- **[ベンチマーク方法](docs/BENCHMARKING.md)**  
-  測定順序、統計、メモリ、比較値、tail解析
-- **[東京検証](docs/TOKYO_EVIDENCE.md)**  
-  大規模graph、生データ、gate、不採用実験
-- **[データ形式](docs/DATA.md)**  
-  OSM、PBF、DIMACS、Aegis graph形式
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 開発する
-
-- **[コントリビューション](CONTRIBUTING.md)**  
-  開発flow、検証要件、PR checklist
-
-</td>
-<td width="50%" valign="top">
-
-### 安全に運用・報告する
-
-- **[セキュリティ](SECURITY.md)**  
-  untrusted input、非公開報告、運用guidance
-
-</td>
-</tr>
-</table>
+| 文書 | 内容 |
+|---|---|
+| [アルゴリズム](docs/ALGORITHM.md) | 状態、上下界、potential、scheduler、停止条件 |
+| [正確性](docs/CORRECTNESS.md) | 最短性の根拠、不変条件、補題、機械検査 |
+| [ベンチマーク方法](docs/BENCHMARKING.md) | 測定順序、統計、メモリ、比較値の意味 |
+| [東京検証](docs/TOKYO_EVIDENCE.md) | 大規模グラフ、生データ、ゲート、不採用実験 |
+| [関連研究](docs/RELATED_WORK.md) | 既存の双方向探索研究との関係、主張の境界 |
+| [データ形式](docs/DATA.md) | OSM、PBF、DIMACS、Aegisグラフ形式 |
+| [コントリビューション](CONTRIBUTING.md) | 開発手順、検証要件、PRチェックリスト |
+| [セキュリティ](SECURITY.md) | 信頼できない入力、非公開報告、運用上の注意 |
 
 ## 現在の境界
 
