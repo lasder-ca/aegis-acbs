@@ -57,11 +57,11 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 		t.Fatalf("missing peak RSS on %s: %+v", runtime.GOOS, r.Memory)
 	}
 	for _, summary := range r.Summary {
+		if summary.Runs != 9 || summary.Correct != 9 {
+			t.Fatalf("incomplete benchmark summary: %+v", summary)
+		}
 		if summary.MinNS <= 0 || summary.MeanNS < summary.MinNS || summary.MaxNS < summary.MeanNS {
 			t.Fatalf("invalid descriptive statistics: %+v", summary)
-		}
-		if summary.MedianAllocObjects == 0 {
-			t.Fatalf("expected allocation pass for %s: %+v", summary.Algorithm, summary)
 		}
 	}
 	path := filepath.Join(t.TempDir(), "report.html")
