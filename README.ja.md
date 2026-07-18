@@ -1,44 +1,85 @@
+<div align="center">
+
 # Aegis ACBS
 
+**共有下界で最短性を証明する、厳密な双方向最短経路探索。**
+
+<sub>道路グラフ向け研究CLI · OSM / DIMACS · JSON / CSV / 単体HTMLレポート</sub>
+
+<br>
+
 [![CI](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml/badge.svg)](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white)
+![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-555)
+![Status](https://img.shields.io/badge/status-research%20prototype-7c3aed)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**Aegis Coupled-Bound Search（ACBS）**は、重み付き有向道路グラフ上で1対1の厳密最短経路を求める実装です。
+[English](README.md) · [アルゴリズム](docs/ALGORITHM.md) · [正確性](docs/CORRECTNESS.md) · [東京検証](docs/TOKYO_EVIDENCE.md)
 
-始点側と終点側のfrontierを同時に進め、両方向で共有する下界と、発見済み経路の上界を維持します。探索中は、下界を効率よく押し上げている方向へ辺処理の予算を多く配分します。共有下界が最良の完全経路へ到達した時点で停止するため、schedulerは探索順序を変えても最短性の判定には影響しません。
+</div>
 
-> **研究段階:** 再現可能な研究プロトタイプとして公開しています。既存の双方向探索との関係は文書化していますが、学術的新規性や他の道路網への性能一般化は第三者検証前です。
+---
 
-English: [README.md](README.md)
+Aegis Coupled-Bound Searchは、始点側と終点側のfrontierを1つの厳密探索として進めます。両方向で許容下界を共有し、発見済みの最良完全経路を上界として維持します。適応schedulerは、下界をより効率よく押し上げている側へ次の辺処理chunkを配分します。
 
-## 特徴
+> [!IMPORTANT]
+> ACBSは、再現可能な研究プロトタイプとして公開しています。学術的新規性と、他の道路網への性能一般化は第三者検証前です。
 
-- **厳密な経路探索:** 有限・非負重みの有向グラフで最短経路を返します。
-- **証明用メトリクス:** 上界、停止時下界、optimality gapを出力します。
-- **適応的な双方向探索:** 下界進行量を基に、前後frontierの辺処理量を調整します。
-- **道路グラフ対応:** OSM XMLとDIMACSを取り込み、コンパクトなバイナリ形式へ変換します。
-- **再現可能な評価:** JSON、CSV、単体で開けるHTMLレポートを生成します。
-- **複数OS:** Linux、Windows、macOSでビルドとテストを行います。
+## ひと目で分かる特徴
 
-## 現在の検証結果
+| 厳密な経路探索 | 適応的な探索配分 | 道路グラフ対応 | 再現可能な評価 |
+|:--|:--|:--|:--|
+| 有限・非負重みの有向グラフで最短経路を返します。 | 最短性の証明を変えず、前後frontierの辺処理量を動的に調整します。 | OSM XMLとDIMACSを取り込み、Aegisバイナリグラフへ変換します。 | benchmark、tail解析、trigger解析をJSON、CSV、単体HTMLで保存します。 |
 
-2026年7月18日に、東京の時間重み付き道路グラフで10,000クエリを検証しました。グラフ規模は611,846ノード、1,235,323有向辺です。
+## ACBSが答えを確定するまで
 
-| 検証項目 | 観測結果 |
+```mermaid
+flowchart LR
+    S((始点)) --> F[前向きfrontier]
+    T((終点)) --> B[後ろ向きfrontier]
+    P[balanced admissible potential] --> F
+    P --> B
+    F --> C[接続候補]
+    B --> C
+    C --> U[発見済み経路の上界 U]
+    F --> L[共有下界 L]
+    B --> L
+    L --> G{L ≥ U?}
+    U --> G
+    G -- No --> A[次の辺処理chunkを配分]
+    A --> F
+    A --> B
+    G -- Yes --> R[厳密な最短経路を返す]
+```
+
+schedulerが変えるのは探索順序だけです。許容potential、共有下界、発見済み経路、厳密な停止条件は変更しません。
+
+## 検証結果の要約
+
+最初の公開版には、**2026年7月18日**にユーザー環境で実行した東京の時間重み付き道路グラフ検証を収録しています。グラフ規模は**611,846ノード**、**1,235,323有向辺**です。
+
+<table>
+<tr>
+<td align="center"><strong>10,000 / 10,000</strong><br><sub>Dijkstraと最短距離が一致</sub></td>
+<td align="center"><strong>2 / 11</strong><br><sub>初回slowdownが隔離再測定でも再現</sub></td>
+<td align="center"><strong>0 / 3</strong><br><sub>事前定義ゲートを通過したguard候補</sub></td>
+<td align="center"><strong>1件一致</strong><br><sub>同一suite内のcheckpoint-48診断ルール</sub></td>
+</tr>
+</table>
+
+| 再現したtail分類 | 観測率 |
 |---|---:|
-| Dijkstraと最短距離が一致 | **10,000 / 10,000** |
-| 初回測定で検出したmeaningful slowdown | 11 / 10,000 |
-| 隔離再測定でも再現 | 2 / 11 |
-| 適応scheduler由来の再現tail | 1 / 10,000 |
-| 既存方式が継続的に有利な再現tail | 1 / 10,000 |
-| 事前定義ゲートを通過したguard候補 | **0 / 3** |
-| 同一suite内で見つかった診断ルール | checkpoint 48、1件一致 |
+| 適応scheduler由来 | 1 / 10,000 |
+| 既存方式が継続的に有利 | 1 / 10,000 |
 
-この結果は、特定のグラフ、クエリ生成方法、実行環境に対する観測です。すべての道路網で高速であることを示すものではありません。生データ、判定基準、不採用実験は[東京検証の記録](docs/TOKYO_EVIDENCE.md)にまとめています。
+> [!NOTE]
+> これは1つのグラフ、クエリ設計、実行環境に対する観測です。すべての道路網で高速であることを示すものではありません。生データ、合格基準、不採用実験は[東京検証の記録](docs/TOKYO_EVIDENCE.md)に保存しています。
 
-## セットアップ
+## クイックスタート
 
-必要環境はGo 1.23以降です。
+**必要環境:** Go 1.23以降。
+
+### 1. ビルドとテスト
 
 ```bash
 git clone https://github.com/lasder-ca/aegis-acbs.git
@@ -48,7 +89,7 @@ go test ./...
 go build -o bin/aegis ./cmd/aegis
 ```
 
-同梱のOSM fixtureを取り込みます。
+### 2. 同梱のOSM fixtureを取り込む
 
 ```bash
 bin/aegis import-osm \
@@ -58,7 +99,7 @@ bin/aegis import-osm \
   --metric distance
 ```
 
-比較ベンチマークを実行します。
+### 3. 比較レポートを生成する
 
 ```bash
 bin/aegis benchmark \
@@ -73,44 +114,29 @@ bin/aegis benchmark \
   --html /tmp/hatfield.html
 ```
 
-## 探索の構成
+生成されるHTMLは単体で開けるため、別のサーバーや外部依存は不要です。
 
-```text
-始点  ->  前向きfrontier  ->  接続候補
-                                  ^
-終点  <-  後ろ向きfrontier  <-  接続候補
+## CLIマップ
 
-共有状態: 許容下界 L、発見済み完全経路の上界 U
-停止条件: L >= U
-```
+| 分類 | コマンド | 用途 |
+|---|---|---|
+| データ | `import-osm`, `import-dimacs` | 元データをAegisグラフへ変換 |
+| 経路探索 | `route` | 1件の厳密な最短経路を計算 |
+| 評価 | `benchmark`, `stress` | 反復測定と並行負荷試験 |
+| tail解析 | `diagnose`, `replay-regret` | クエリ単位のslowdownを検出・隔離 |
+| scheduler研究 | `profile-trigger` | checkpointごとのfrontier特徴量を記録 |
+| 集約 | `aggregate` | 複数seedのbenchmark matrixを生成 |
 
-適応schedulerが決めるのは、次の辺処理chunkをどちらのfrontierへ渡すかだけです。potential、上下界、最短性の停止条件は変更しません。
+標準比較にはDijkstra、双方向Dijkstra、地理A*、固定scheduler版ACBS、適応scheduler版ACBSを含めます。不採用の実験変種は、結果を再現できるようにする目的だけで残しています。
 
-数式と状態遷移は[アルゴリズム](docs/ALGORITHM.md)、正確性の根拠は[Correctness](docs/CORRECTNESS.md)に分けています。
-
-## 主なコマンド
-
-| コマンド | 用途 |
-|---|---|
-| `import-osm` | OSM XMLをAegisグラフへ変換 |
-| `import-dimacs` | DIMACS形式を取り込み |
-| `route` | 1件の経路を計算 |
-| `benchmark` | 複数方式を反復・交互測定 |
-| `stress` | 並行実行とDijkstraによる標本検証 |
-| `diagnose` | クエリ単位の性能tailを抽出 |
-| `replay-regret` | 抽出したtailを隔離再測定 |
-| `profile-trigger` | scheduler特徴量をcheckpointごとに記録 |
-| `aggregate` | 複数seedの結果を集約 |
-
-通常の比較対象はDijkstra、双方向Dijkstra、地理A*、固定scheduler版ACBS、適応scheduler版ACBSです。不採用になった実験変種は、結果の再現用としてのみ残しています。
-
-## 研究結果の再現
+<details>
+<summary><strong>tail解析の再現コマンド</strong></summary>
 
 ```bash
 # 複数seedでtailを検証
 scripts/validate-tail.sh path/to/time-graph.aegis artifacts/tail
 
-# 検出したtailを隔離再測定
+# 保持したケースを隔離再測定
 bin/aegis replay-regret \
   --graph path/to/time-graph.aegis \
   --validation artifacts/tail/regret-validation.json \
@@ -121,7 +147,7 @@ bin/aegis replay-regret \
   --csv artifacts/replay.csv \
   --html artifacts/replay.html
 
-# 全クエリのscheduler特徴量を記録
+# 全suiteのscheduler特徴量を記録
 bin/aegis profile-trigger \
   --graph path/to/time-graph.aegis \
   --validation artifacts/tail/regret-validation.json \
@@ -134,29 +160,31 @@ bin/aegis profile-trigger \
   --html artifacts/trigger-profile.html
 ```
 
+</details>
+
 ## ドキュメント
 
-- [アルゴリズム](docs/ALGORITHM.md)
-- [正確性](docs/CORRECTNESS.md)
-- [ベンチマーク方法](docs/BENCHMARKING.md)
-- [東京検証の記録](docs/TOKYO_EVIDENCE.md)
-- [関連研究](docs/RELATED_WORK.md)
-- [データ形式](docs/DATA.md)
-- [セキュリティポリシー](SECURITY.md)
-- [コントリビューション](CONTRIBUTING.md)
+| 文書 | 内容 |
+|---|---|
+| [アルゴリズム](docs/ALGORITHM.md) | 状態、上下界、potential、scheduler、停止条件 |
+| [正確性](docs/CORRECTNESS.md) | 最短性の根拠と不変条件 |
+| [ベンチマーク方法](docs/BENCHMARKING.md) | 測定順序、統計、メモリ、比較値の意味 |
+| [東京検証](docs/TOKYO_EVIDENCE.md) | 大規模グラフ結果、生データ、ゲート、不採用実験 |
+| [関連研究](docs/RELATED_WORK.md) | 既存の双方向探索研究との関係 |
+| [データ形式](docs/DATA.md) | OSM、DIMACS、Aegisグラフ形式 |
+| [コントリビューション](CONTRIBUTING.md) | 開発手順と検証要件 |
+| [セキュリティ](SECURITY.md) | 脆弱性報告方針 |
 
-## 制約
+## 現在の境界
 
 - 性能はグラフ、重み、経路長、実行環境によって変わります。
 - 公開済みの大規模検証は、現時点では東京の時間グラフが中心です。
-- checkpoint 48のルールは同じsuite内で発見・評価しているため、診断結果としてのみ保持しています。
+- checkpoint 48のルールは同一suite内で発見・評価しているため、診断結果としてのみ保持しています。
 - contraction hierarchies、landmarksなどのグラフ固有前処理は使っていません。
 - 学術的新規性と一般化性能には、独立したレビューと追試が必要です。
 
-## リリース
+## リリースとライセンス
 
 `v0.1.0`が最初の公開版です。CHANGELOGにあるそれ以前の番号は、公開前の研究反復を示します。
 
-## ライセンス
-
-MIT Licenseです。詳細は[LICENSE](LICENSE)を参照してください。
+[MIT License](LICENSE)で公開しています。

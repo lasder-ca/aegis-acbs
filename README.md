@@ -1,44 +1,85 @@
+<div align="center">
+
 # Aegis ACBS
 
+**Exact bidirectional shortest-path search with a shared proof of optimality.**
+
+<sub>Road-graph research CLI · OSM / DIMACS · JSON / CSV / self-contained HTML reports</sub>
+
+<br>
+
 [![CI](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml/badge.svg)](https://github.com/lasder-ca/aegis-acbs/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white)
+![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-555)
+![Status](https://img.shields.io/badge/status-research%20prototype-7c3aed)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**Aegis Coupled-Bound Search (ACBS)** is an exact point-to-point shortest-path implementation for weighted directed road graphs.
+[日本語](README.ja.md) · [Algorithm](docs/ALGORITHM.md) · [Correctness](docs/CORRECTNESS.md) · [Tokyo evidence](docs/TOKYO_EVIDENCE.md)
 
-ACBS advances forward and reverse frontiers under one shared proof of optimality. A balanced admissible potential guides both directions, while an adaptive scheduler shifts edge-work toward the frontier that is making more lower-bound progress. The search returns only after the proven lower bound reaches the best complete path found so far.
+</div>
 
-> **Research status:** ACBS is a reproducible research prototype. Its relationship to prior bidirectional-search work is documented, but academic novelty and performance generalization have not been independently established.
+---
 
-日本語: [README.ja.md](README.ja.md)
+Aegis Coupled-Bound Search advances forward and reverse frontiers inside one exact search. Both directions share an admissible lower bound, while the best complete route found so far supplies an upper bound. An adaptive scheduler assigns the next edge-work chunk to the frontier that is making more useful lower-bound progress.
 
-## Highlights
+> [!IMPORTANT]
+> ACBS is published as a reproducible research prototype. Academic novelty and performance generalization have not yet been independently established.
 
-- **Exact routing:** returns a shortest path on finite, non-negative weighted directed graphs.
-- **Proof-oriented output:** reports the incumbent upper bound, termination lower bound, and optimality gap.
-- **Adaptive bidirectional work:** allocates edge-processing chunks using observed lower-bound progress.
-- **Road-graph tooling:** imports OSM XML and DIMACS data, then stores a compact binary graph format.
-- **Reproducible evaluation:** emits JSON, CSV, and self-contained HTML reports for benchmarks, tail replay, and trigger profiling.
-- **Portable CLI:** tested on Linux, Windows, and macOS.
+## At a glance
 
-## Current evidence
+| Exact routing | Adaptive work | Road-graph tooling | Reproducible evaluation |
+|:--|:--|:--|:--|
+| Returns a shortest path on finite, non-negative weighted directed graphs. | Shifts edge-processing effort between two frontiers without changing the proof of optimality. | Imports OSM XML and DIMACS, then stores a compact Aegis binary graph. | Produces JSON, CSV, and portable HTML reports for benchmarks and tail analysis. |
 
-The first public release includes a user-run Tokyo travel-time graph experiment from July 18, 2026. The graph contained 611,846 nodes and 1,235,323 directed edges.
+## How ACBS reaches a proven answer
 
-| Check | Observed result |
+```mermaid
+flowchart LR
+    S((Source)) --> F[Forward frontier]
+    T((Target)) --> B[Reverse frontier]
+    P[Balanced admissible potential] --> F
+    P --> B
+    F --> C[Connection candidates]
+    B --> C
+    C --> U[Incumbent upper bound U]
+    F --> L[Coupled lower bound L]
+    B --> L
+    L --> G{L ≥ U?}
+    U --> G
+    G -- No --> A[Allocate the next edge-work chunk]
+    A --> F
+    A --> B
+    G -- Yes --> R[Return the exact shortest path]
+```
+
+The scheduler changes exploration order only. It does not replace the admissible potential, the coupled lower bound, the incumbent path, or the exact stopping condition.
+
+## Evidence snapshot
+
+The first public release includes a user-run Tokyo travel-time experiment from **July 18, 2026** on a graph with **611,846 nodes** and **1,235,323 directed edges**.
+
+<table>
+<tr>
+<td align="center"><strong>10,000 / 10,000</strong><br><sub>shortest-path distances matched Dijkstra</sub></td>
+<td align="center"><strong>2 / 11</strong><br><sub>initial slowdown cases reproduced in isolation</sub></td>
+<td align="center"><strong>0 / 3</strong><br><sub>guard candidates passed the predefined gate</sub></td>
+<td align="center"><strong>1 match</strong><br><sub>in-sample checkpoint-48 diagnostic trigger</sub></td>
+</tr>
+</table>
+
+| Reproduced tail class | Observed rate |
 |---|---:|
-| Shortest-path distance matched Dijkstra | **10,000 / 10,000** |
-| Initially detected meaningful slowdowns | 11 / 10,000 |
-| Slowdowns reproduced in isolated replay | 2 / 11 |
-| Reproduced adaptive-scheduler tail | 1 / 10,000 |
-| Reproduced persistent classical tail | 1 / 10,000 |
-| Guard candidates accepted by the predefined gate | **0 / 3** |
-| In-sample diagnostic trigger | checkpoint 48, one match |
+| Adaptive-scheduler tail | 1 / 10,000 |
+| Persistent classical tail | 1 / 10,000 |
 
-These results describe one graph, one workload design, and one machine environment. They are evidence for that experiment, not a universal speed claim. Raw reports and the acceptance criteria are documented in [Tokyo evidence](docs/TOKYO_EVIDENCE.md).
+> [!NOTE]
+> These figures describe one graph, workload design, and machine environment. They are experimental observations, not a universal speed claim. Raw reports, acceptance criteria, and rejected experiments are preserved in [Tokyo evidence](docs/TOKYO_EVIDENCE.md).
 
 ## Quick start
 
-Requirements: Go 1.23 or newer.
+**Requirements:** Go 1.23 or newer.
+
+### 1. Build and test
 
 ```bash
 git clone https://github.com/lasder-ca/aegis-acbs.git
@@ -48,7 +89,7 @@ go test ./...
 go build -o bin/aegis ./cmd/aegis
 ```
 
-Import the bundled OSM fixture:
+### 2. Import the bundled OSM fixture
 
 ```bash
 bin/aegis import-osm \
@@ -58,7 +99,7 @@ bin/aegis import-osm \
   --metric distance
 ```
 
-Run an interleaved benchmark:
+### 3. Generate a benchmark report
 
 ```bash
 bin/aegis benchmark \
@@ -73,38 +114,23 @@ bin/aegis benchmark \
   --html /tmp/hatfield.html
 ```
 
-## How the search is organized
+The HTML output is self-contained and can be opened directly in a browser.
 
-```text
-source  ->  forward frontier  ->  candidate connection
-                                            ^
-target  <-  reverse frontier  <-  candidate connection
+## CLI map
 
-shared state: admissible lower bound L, incumbent path cost U
-termination: L >= U
-```
+| Area | Commands | Purpose |
+|---|---|---|
+| Data | `import-osm`, `import-dimacs` | Convert source data into an Aegis graph |
+| Routing | `route` | Compute one exact point-to-point route |
+| Evaluation | `benchmark`, `stress` | Measure repeated and concurrent routing workloads |
+| Tail analysis | `diagnose`, `replay-regret` | Detect and isolate meaningful per-query slowdowns |
+| Scheduler research | `profile-trigger` | Record deterministic frontier features at checkpoints |
+| Aggregation | `aggregate` | Build multi-seed benchmark matrices |
 
-The scheduler changes which frontier receives the next edge-work chunk. It does not change the admissible potential, the incumbent path, the coupled lower bound, or the exact stopping condition.
+The standard benchmark set contains Dijkstra, bidirectional Dijkstra, geographic A*, static ACBS, and adaptive ACBS. Rejected experimental variants remain available only so their results can be reproduced.
 
-A formal description is available in [Algorithm](docs/ALGORITHM.md), with the correctness argument separated into [Correctness](docs/CORRECTNESS.md).
-
-## Main commands
-
-| Command | Purpose |
-|---|---|
-| `import-osm` | Import OSM XML into an Aegis graph |
-| `import-dimacs` | Import DIMACS shortest-path data |
-| `route` | Compute one route |
-| `benchmark` | Compare algorithms with interleaved repeated timing |
-| `stress` | Run concurrent routing with sampled Dijkstra verification |
-| `diagnose` | Find meaningful per-query performance tails |
-| `replay-regret` | Remeasure retained tails in isolation |
-| `profile-trigger` | Record deterministic scheduler features at checkpoints |
-| `aggregate` | Build multi-seed benchmark matrices |
-
-The normal benchmark set includes Dijkstra, bidirectional Dijkstra, geographic A*, static ACBS, and adaptive ACBS. Rejected experiments remain available only for reproducibility and are described in the changelog and research documents.
-
-## Reproducing the research workflow
+<details>
+<summary><strong>Reproduce the tail-analysis workflow</strong></summary>
 
 ```bash
 # Multi-seed tail validation
@@ -134,29 +160,31 @@ bin/aegis profile-trigger \
   --html artifacts/trigger-profile.html
 ```
 
+</details>
+
 ## Documentation
 
-- [Algorithm](docs/ALGORITHM.md)
-- [Correctness](docs/CORRECTNESS.md)
-- [Benchmark methodology](docs/BENCHMARKING.md)
-- [Tokyo evidence](docs/TOKYO_EVIDENCE.md)
-- [Related work](docs/RELATED_WORK.md)
-- [Data formats](docs/DATA.md)
-- [Security policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
+| Document | Contents |
+|---|---|
+| [Algorithm](docs/ALGORITHM.md) | State, bounds, potential, scheduling, and termination |
+| [Correctness](docs/CORRECTNESS.md) | Exactness argument and invariants |
+| [Benchmarking](docs/BENCHMARKING.md) | Timing order, statistics, memory, and comparison semantics |
+| [Tokyo evidence](docs/TOKYO_EVIDENCE.md) | Large-graph results, raw evidence, gates, and failed experiments |
+| [Related work](docs/RELATED_WORK.md) | Relationship to existing bidirectional-search research |
+| [Data formats](docs/DATA.md) | OSM, DIMACS, and Aegis graph formats |
+| [Contributing](CONTRIBUTING.md) | Development and validation requirements |
+| [Security](SECURITY.md) | Vulnerability reporting policy |
 
-## Limitations
+## Current boundaries
 
-- Performance varies by graph, metric, route length, and hardware.
-- The public large-graph evidence currently centers on one Tokyo travel-time graph.
+- Performance depends on the graph, metric, route length, and hardware.
+- Public large-graph evidence currently centers on one Tokyo travel-time graph.
 - The checkpoint-48 trigger was discovered and evaluated on the same suite, so it remains diagnostic only.
-- ACBS does not currently use contraction hierarchies, landmarks, or graph-specific preprocessing.
-- Independent novelty review and broader third-party reproduction are still needed.
+- ACBS currently uses no contraction hierarchies, landmarks, or graph-specific preprocessing.
+- Independent novelty review and broader third-party reproduction are still required.
 
-## Release status
+## Release and license
 
-`v0.1.0` is the first public research release. Public semantic versioning starts there; earlier version numbers in the changelog refer to private research iterations.
+`v0.1.0` is the first public research release. Earlier version numbers in the changelog refer to private research iterations.
 
-## License
-
-MIT. See [LICENSE](LICENSE).
+Released under the [MIT License](LICENSE).
