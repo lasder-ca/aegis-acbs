@@ -1,44 +1,90 @@
-# Benchmarking ACBS
+<div align="center">
 
-## Principles
+# ACBS ベンチマーク方法
 
-Dijkstra is the correctness reference and is run outside timed samples. Algorithms are interleaved inside every repetition. A deterministic shuffle derived from the seed, query index, and repeat index changes the order while preserving reproducibility.
+**測定順序、統計、メモリ、比較値、tail解析を再現可能にするためのルール。**
 
-```text
-for each query:
-  for each repeat:
-    shuffle(all algorithms)
-    measure every algorithm once in that order
-  retain the median repetition for each algorithm
+![Order](https://img.shields.io/badge/order-interleaved-2563eb)
+![Correctness](https://img.shields.io/badge/oracle-Dijkstra-16a34a)
+![Reports](https://img.shields.io/badge/output-JSON%20%7C%20CSV%20%7C%20HTML-475569)
+
+[ドキュメント一覧](README.md) · [アルゴリズム](ALGORITHM.md) · [東京検証](TOKYO_EVIDENCE.md) · [トップ](../README.ja.md)
+
+</div>
+
+---
+
+## 測定の原則
+
+```mermaid
+flowchart LR
+    Q[同一query] --> R[repeat 1]
+    Q --> S[repeat 2]
+    Q --> T[repeat N]
+    R --> A[方式順を決定的shuffle]
+    S --> B[方式順を決定的shuffle]
+    T --> C[方式順を決定的shuffle]
+    A --> M[方式ごとの中央値]
+    B --> M
+    C --> M
+    M --> P[query集合からp50 / p95 / p99]
 ```
 
-Use `--order rotated` only when comparing directly with the earlier rotated-order methodology.
+Dijkstraは正確性の基準としてtimed sampleの外で実行します。比較対象は各repeat内でinterleaveし、seed・query番号・repeat番号から決まるshuffle順で1回ずつ測定します。
 
-## Latency
+```text
+各queryについて:
+  各repeatについて:
+    全方式の順序を決定的にshuffle
+    その順で各方式を1回ずつ測定
+  方式ごとにrepeat中央値を採用
+```
 
-Reports contain query-level:
+| ルール | 理由 |
+|---|---|
+| 同じgraphとquery pairを使う | 入力差を排除する |
+| 方式をinterleaveする | 熱・cache・実行順の偏りを弱める |
+| 順序をseedから再現する | 同じ実験を再実行できる |
+| Dijkstra検証をtimed sampleから外す | oracleのコストを測定へ混ぜない |
+| 生JSONを保存する | 集計値だけでなくquery単位で監査する |
 
-- `meanNs`
-- `minNs` (best)
-- `maxNs` (worst)
-- `medianNs` (p50)
-- `p95Ns`
-- `p99Ns`
+`--order rotated`は、過去のrotated-order手法と直接比較するときだけ使用します。
 
-Each query-level value is the median of its repeated inner measurements. Aggregate percentiles are then computed across queries.
+## latency統計
 
-Very small synthetic fixtures can approach the resolution of the platform timer. Publication-scale latency claims should use realistic graphs, repeated measurements, and absolute-time thresholds rather than ratios alone.
+各queryについてrepeat中央値を作り、そのquery集合から集計します。
 
-## Memory
+| フィールド | 意味 |
+|---|---|
+| `minNs` | 最小値（best） |
+| `meanNs` | 算術平均 |
+| `medianNs` | 中央値（p50） |
+| `p95Ns` | 95パーセンタイル |
+| `p99Ns` | 99パーセンタイル |
+| `maxNs` | 最大値（worst） |
 
-`--measure-memory` adds a separate untimed execution for every query and algorithm and records:
+> [!WARNING]
+> 極小fixtureはplatform timerの分解能へ近づきます。公開用のlatency主張では、実用規模graph、複数repeat、絶対時間差を使い、比率だけで結論を出しません。
 
-- `allocBytes`: delta of Go `TotalAlloc`.
-- `allocObjects`: delta of Go `Mallocs`.
+## メモリ測定
 
-The untimed pass prevents memory instrumentation from contaminating latency. Allocation values include query-context and harness allocations surrounding the algorithm call.
+`--measure-memory`は、latency測定とは別の非計時passをquery・方式ごとに追加します。
 
-The report also records process-wide:
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### query単位
+
+- `allocBytes`: Go `TotalAlloc`の差分
+- `allocObjects`: Go `Mallocs`の差分
+
+計測用contextやharness周辺のallocationも含みます。
+
+</td>
+<td width="50%" valign="top">
+
+### process全体
 
 - `peakRssBytes`
 - `goHeapAllocBytes`
@@ -47,56 +93,88 @@ The report also records process-wide:
 - `goMallocs`
 - `goNumGc`
 
-Peak RSS includes the graph, all algorithms used by the process, the Go runtime, and report data. Linux and macOS report peak RSS directly; unsupported platforms currently record `peakRssBytes` as `0` while the Go heap and allocation counters remain available. For an ACBS-only process measurement:
+</td>
+</tr>
+</table>
+
+LinuxとmacOSはpeak RSSを直接報告します。未対応platformでは`peakRssBytes = 0`となりますが、Go heapとallocation counterは使用できます。
 
 ```bash
 scripts/memory-profile.sh path/to/graph.aegis
 ```
 
-## Speedup definitions
+## speedupとregretの定義
 
 ```text
-ratio of medians = median(Dijkstra query times) / median(candidate query times)
-per-query speedup(q) = Dijkstra time(q) / candidate time(q)
-median per-query speedup = median(per-query speedup)
-geometric-mean speedup = exp(mean(log(per-query speedup)))
+ratio of medians
+  = median(Dijkstra query times) / median(candidate query times)
+
+per-query speedup(q)
+  = Dijkstra time(q) / candidate time(q)
+
+median per-query speedup
+  = median(per-query speedup)
+
+geometric-mean speedup
+  = exp(mean(log(per-query speedup)))
 ```
 
-## Fastest classical-baseline comparison
+### 最速classical baselineとの比較
 
 ```text
-fastest classical baseline = min(Dijkstra, bidirectional Dijkstra, A*)
-runtime ratio = ACBS time / fastest classical baseline time
-classical oracle regret = max(1, runtime ratio)
+fastest classical baseline
+  = min(Dijkstra, bidirectional Dijkstra, A*)
+
+runtime ratio
+  = ACBS time / fastest classical baseline time
+
+classical oracle regret
+  = max(1, runtime ratio)
 ```
 
-## Work and connection counters
+| 値 | 読み方 |
+|---:|---|
+| `< 1.0×` | ACBSが最速classical baselineより速い |
+| `= 1.0×` | 同等 |
+| `> 1.0×` | ACBSが遅い |
 
-- `expanded`: adjacency lists processed.
-- `relaxed`: edges examined.
-- `queuePushes`, `queuePops`, `stalePops`: priority-queue activity.
-- `prunedAtPop`, `prunedAtRelax`, `boundPruned`: incumbent-bound pruning.
-- `connectionChecks`: every attempted forward/backward connection check.
-- `finiteMeetings`: checks where both directional labels are finite.
-- `meetingChecks`: compatibility alias for `finiteMeetings`.
-- `upperBoundUpdates`: finite meetings that improved the incumbent.
+## 探索workのcounter
 
-The accounting invariant is:
+| counter | 意味 |
+|---|---|
+| `expanded` | adjacency listを処理した頂点数 |
+| `relaxed` | 確認した辺数 |
+| `queuePushes` / `queuePops` | priority queue操作 |
+| `stalePops` | 古いlabelとして捨てたpop |
+| `prunedAtPop` / `prunedAtRelax` | incumbent boundによる枝刈り |
+| `connectionChecks` | 前後labelの接続確認回数 |
+| `finiteMeetings` | 両方向labelが有限だった接続確認 |
+| `upperBoundUpdates` | 上界を改善した接続 |
 
 ```text
 connectionChecks >= finiteMeetings >= upperBoundUpdates
 boundPruned = prunedAtPop + prunedAtRelax
 ```
 
-## Publication-scale validation
+latencyとworkは分けて解釈します。時間が速くても展開量が大幅に増えていれば、別環境で逆転する可能性があります。
 
-The research matrix supports Tokyo, Yokohama, Osaka, and Nagoya, with distance and travel-time graphs, multiple seeds, and independently stored reports:
+## 標準benchmark
 
 ```bash
-scripts/validate-research.sh
+aegis benchmark \
+  --graph city.aegis \
+  --algorithms dijkstra,bidijkstra,astar,aegis-static,aegis \
+  --queries 1000 \
+  --repeats 9 \
+  --order interleaved \
+  --measure-memory \
+  --output benchmark.json \
+  --html benchmark.html
 ```
 
-Recommended environment controls:
+標準比較では、Dijkstra、双方向Dijkstra、地理A*、固定scheduler版ACBS、適応scheduler版ACBSを分けて表示します。実験variantやselectorの結果は主比較へ混ぜません。
+
+## 公開規模の検証
 
 ```bash
 GOMAXPROCS=1
@@ -104,64 +182,55 @@ AEGIS_ORDER=interleaved
 AEGIS_QUERIES=1000
 AEGIS_REPEATS=3
 AEGIS_MEASURE_MEMORY=1
+scripts/validate-research.sh
 ```
 
-Record CPU model, governor, temperature policy, OS, Go version, graph checksum, import options, raw JSON, and command line. For p99 claims, increase the query count beyond 1,000 and report confidence intervals.
+記録する環境情報:
 
-## Steady-state allocation regression
+- CPU modelとgovernor
+- 温度・電源方針
+- OSとGo version
+- graph checksum
+- import option
+- 完全なcommand line
+- raw JSON / CSV / HTML
 
-The search-core benchmark warms the pooled workspace before measuring ACBS:
+p99を主張するときはquery数を1,000より増やし、confidence intervalも併記します。
+
+## allocation regression
 
 ```bash
-go test ./internal/search -run '^$' -bench '^BenchmarkACBSLargeGrid$' -benchmem
-```
+go test ./internal/search \
+  -run '^$' \
+  -bench '^BenchmarkACBSLargeGrid$' \
+  -benchmem
 
-For a direct comparison between two revisions using identical temporary benchmark code and isolated Git worktrees:
-
-```bash
 scripts/compare-allocations.sh
 ```
 
-The generated grid fixture isolates queue and path allocation behavior. It does not replace the real OSM-derived city matrix for algorithm-performance claims. Queue backing arrays are retained after warm-up, so lower `B/op` and `allocs/op` should be evaluated together with ACBS-only peak RSS.
+このgrid fixtureはqueueとpath allocationを分離して確認するためのものです。実都市graphの性能検証を置き換えるものではありません。
 
-## Experimental variants
-
-The default research set isolates the scheduler. Other mechanisms can be added explicitly:
-
-```bash
-aegis benchmark \
-  --graph city.aegis \
-  --algorithms dijkstra,bidijkstra,astar,aegis-static,aegis,aegis-prune,aegis-projection \
-  --order interleaved \
-  --measure-memory
-```
-
-Publication reports list each ACBS variant separately and exclude selector results from the main comparison. A projection speedup accompanied by substantially higher expansion counts is an implementation tradeoff rather than evidence of a stronger heuristic.
-
-## Concurrent and soak validation
-
-Use the in-process stress runner to exercise pooled workspaces under goroutine concurrency:
+## concurrencyとsoak
 
 ```bash
 GOMAXPROCS=8 aegis stress \
-  --graph city.aegis --queries 10000 --workers 8 \
-  --verify-every 100 --output stress.json
+  --graph city.aegis \
+  --queries 10000 \
+  --workers 8 \
+  --verify-every 100 \
+  --output stress.json
 ```
 
-`verify-every=1` verifies every query against Dijkstra. Larger values reduce reference-search cost while retaining deterministic sampling. A zero value disables Dijkstra verification but still validates returned path continuity.
-
-Worker scaling and repeated-process soak helpers:
+`verify-every=1`は全queryをDijkstraで検証します。値を大きくするとdeterministic samplingになります。`0`ではDijkstra比較を省略しますが、返却pathの連続性は検査します。
 
 ```bash
 scripts/stress-matrix.sh city.aegis artifacts/stress
 scripts/soak.sh city.aegis artifacts/soak
 ```
 
-Report throughput together with p95, p99, and peak RSS. A throughput increase accompanied by substantially worse p99 or RSS should be treated as a tradeoff rather than a clean scaling improvement.
+throughputだけでなくp95、p99、peak RSSを同時に報告します。
 
-## Regret diagnosis
-
-Use `aegis diagnose` after a benchmark containing `dijkstra`, `bidijkstra`, `astar`, and `aegis` samples:
+## meaningful slowdownの検出
 
 ```bash
 aegis diagnose \
@@ -173,11 +242,14 @@ aegis diagnose \
   --html regret.html
 ```
 
-The ratio threshold alone is insufficient on very short queries. By default a query is marked meaningful only when ACBS is at least 1.25 times slower than the fastest classical baseline and loses at least 1 ms in absolute time.
+短いqueryでは比率だけが大きくなりやすいため、既定では次の両方を満たす場合だけmeaningful slowdownとします。
 
-## Multi-seed meaningful-slowdown validation
+```text
+ACBS >= 1.25 × fastest classical baseline
+absolute penalty >= 1 ms
+```
 
-Run resumable validation over a graph:
+## multi-seed validation
 
 ```bash
 AEGIS_QUERIES=1000 \
@@ -185,22 +257,9 @@ AEGIS_SEEDS="1010 20260717 424242 8675309 123456789 314159265 271828182 16180339
 scripts/validate-tail.sh city-time.aegis artifacts/tail-validation
 ```
 
-The workflow writes one benchmark report per seed, then runs:
+各seedのreportを個別保存した後、`validate-regret`で最低10,000queryを集約します。event rateと95% intervalを併記し、0件の場合も「真の率が0」とは断定しません。
 
-```bash
-aegis validate-regret \
-  --input-dir artifacts/tail-validation \
-  --ratio-threshold 1.25 \
-  --penalty-floor 1ms \
-  --min-queries 10000 \
-  --max-meaningful-rate 0
-```
-
-Report both the observed event rate and its 95% interval. When zero events are observed, also report the exact one-sided upper bound `1 - 0.05^(1/N)`. At `N=10,000` this is approximately `0.02995%`, not proof that the true rate is zero.
-
-## Isolated tail replay
-
-Large validation matrices can retain a small set of meaningful slowdowns in `regret-validation.json`. A retained timed sample is first replayed in isolation before it is used to propose a scheduler change:
+## 隔離replay
 
 ```bash
 aegis replay-regret \
@@ -214,12 +273,32 @@ aegis replay-regret \
   --html validation/regret-replay.html
 ```
 
-Each case is measured with Dijkstra, bidirectional Dijkstra, A*, static ACBS, and adaptive ACBS in a rotated interleaved order. Timed runs do not record traces. A separate untimed ACBS run records one event per scheduler chunk.
+| classification | 意味 |
+|---|---|
+| `not-reproduced` | 元のoutlierが隔離反復では再現しなかった |
+| `adaptive-scheduler-tail` | 固定schedulerが適応schedulerを絶対時間floor以上で上回った |
+| `persistent-classical-tail` | classical方式が速いが、固定schedulerでは説明できなかった |
 
-Replay classifications are evidence for analysis:
+traceはtimed runで記録しません。別の非計時runでscheduler chunkごとのeventを記録します。
 
-- `not-reproduced`: the validation outlier did not survive repeated isolated measurement.
-- `adaptive-scheduler-tail`: static ACBS materially beat adaptive ACBS under the configured absolute floor.
-- `persistent-classical-tail`: a classical method remained faster, but static scheduling did not explain the difference.
+## 変更を採用する条件
 
-Repeated adaptive-scheduler tails with a shared trace pattern can support a narrowly defined scheduler experiment. Any proposed change is then evaluated against a predefined whole-suite gate.
+> [!IMPORTANT]
+> 大規模結果を見る前にperformance gateを定義します。結果を見た後でthresholdを緩めません。
+
+最低限、次を分けて確認します。
+
+- 最短距離の一致
+- latencyのmean / p50 / p95 / p99
+- explored work
+- allocationとRSS
+- tailの絶対時間差
+- 複数seedでの再現性
+
+---
+
+<div align="center">
+
+[東京検証を見る](TOKYO_EVIDENCE.md) · [正確性を見る](CORRECTNESS.md) · [ドキュメント一覧](README.md)
+
+</div>
