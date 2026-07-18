@@ -14,6 +14,9 @@ import (
 )
 
 func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sub-microsecond fixture timing is below reliable Windows timer resolution")
+	}
 	g := graph.New("tiny-road", "fixture", "car", graph.MetricDistance)
 	g.Nodes = []graph.Node{
 		{ID: 1, Lat: 35.000, Lon: 139.000},
@@ -31,7 +34,7 @@ func TestReportIncludesACBSMetricsAndHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := Run(context.Background(), g, Config{
-		Queries: 9, Repeats: 3, BatchSize: benchmarkTestBatchSize(), Seed: 1010,
+		Queries: 9, Repeats: 3, BatchSize: 64, Seed: 1010,
 		Algorithms: []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.Aegis},
 		Suite:      "mixed", PairMode: "strongly-connected", MeasureMemory: true,
 	})
@@ -92,6 +95,9 @@ func TestInterleavedOrderIsDeterministicAndVariesByRepeat(t *testing.T) {
 }
 
 func TestAggregateDirectoryBuildsMultiSeedMatrix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sub-microsecond fixture timing is below reliable Windows timer resolution")
+	}
 	g := graph.New("matrix-road", "fixture", "car", graph.MetricDistance)
 	g.Nodes = []graph.Node{
 		{ID: 1, Lat: 35.000, Lon: 139.000},
@@ -111,7 +117,7 @@ func TestAggregateDirectoryBuildsMultiSeedMatrix(t *testing.T) {
 	dir := t.TempDir()
 	for _, seed := range []uint64{1010, 20260717} {
 		report, err := Run(context.Background(), g, Config{
-			Queries: 9, Repeats: 3, BatchSize: benchmarkTestBatchSize(), Seed: seed,
+			Queries: 9, Repeats: 3, BatchSize: 64, Seed: seed,
 			Algorithms: []search.Algorithm{search.Dijkstra, search.BiDijkstra, search.AStar, search.Aegis},
 			Suite:      "mixed", PairMode: "strongly-connected",
 		})
@@ -201,13 +207,6 @@ func TestStressRunsConcurrentACBSAndVerifiesSamples(t *testing.T) {
 	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "throughputQps") {
 		t.Fatalf("stress report not written: err=%v", err)
 	}
-}
-
-func benchmarkTestBatchSize() int {
-	if runtime.GOOS == "windows" {
-		return 4096
-	}
-	return 64
 }
 
 func peakRSSSupported() bool {
