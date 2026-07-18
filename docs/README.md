@@ -59,8 +59,8 @@
 
 - **[変更履歴](../CHANGELOG.md)**
 - **[リリースノート](../RELEASE_NOTES.md)**
+- **[GitHub Releases](https://github.com/lasder-ca/aegis-acbs/releases)**
 - **[ライセンス](../LICENSE)**
-- **[行動規範](../CODE_OF_CONDUCT.md)**
 
 </td>
 </tr>
