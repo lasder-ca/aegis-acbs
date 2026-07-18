@@ -106,7 +106,7 @@ scripts/import-pbf.sh \
 
 ```mermaid
 flowchart LR
-    A[region.osm.pbf] --> B[osmium cat]
+    A[region.osm.pbf] --> B[osmium tags-filter]
     B --> C[temporary OSM XML]
     C --> D[Aegis importer]
     D --> E[city.aegis]
@@ -179,10 +179,12 @@ aegis inspect --graph city.aegis
 
 aegis route \
   --graph city.aegis \
-  --source 0 \
-  --target 100 \
+  --source SOURCE_NODE_ID \
+  --target TARGET_NODE_ID \
   --algorithm aegis
 ```
+
+`SOURCE_NODE_ID`と`TARGET_NODE_ID`は、対象graphに実在するOSMまたはDIMACS node IDへ置き換えます。`lat,lon`形式も指定できます。
 
 確認項目:
 
