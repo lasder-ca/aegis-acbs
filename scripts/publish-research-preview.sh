@@ -39,20 +39,17 @@ elif ! git remote get-url origin >/dev/null 2>&1; then
   git remote add origin "https://github.com/$REPO.git"
 fi
 
-if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-  git tag -a "$TAG" -m "Aegis ACBS $VERSION"
-fi
-
 git push -u origin main
-git push origin "$TAG"
 
 if gh release view "$TAG" >/dev/null 2>&1; then
   echo "release already exists: $TAG"
 else
   gh release create "$TAG" dist/* \
+    --target main \
     --title "Aegis ACBS $VERSION" \
     --notes-file RELEASE_NOTES.md \
     --prerelease
 fi
 
+git fetch --tags origin
 echo "published repository and prerelease: https://github.com/$REPO"

@@ -18,11 +18,25 @@ jobs:
         with:
           go-version: '1.26.x'
           cache: true
+      - name: Check whether release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Validate evidence
+        if: steps.existing.outputs.exists != 'true'
         run: python3 scripts/check-v012-release-evidence.py research/tokyo-time-2026-07-18
       - name: Build release assets
+        if: steps.existing.outputs.exists != 'true'
         run: scripts/build-release.sh
       - name: Create prerelease
+        if: steps.existing.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
