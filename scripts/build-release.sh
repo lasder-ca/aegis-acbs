@@ -11,7 +11,21 @@ go test ./...
 go vet ./...
 go test -race ./internal/search ./internal/graph ./internal/bench ./internal/server
 scripts/reproduce.sh
-OLD_TAG=v0.11.2-experimental QUERIES=100 REPEATS=5 BATCH=8 scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
+INTERNAL_BASELINE_TAG="${AEGIS_INTERNAL_BASELINE_TAG:-v0.11.2-experimental}"
+HAS_INTERNAL_BASELINE=false
+
+if git rev-parse --verify "${INTERNAL_BASELINE_TAG}^{commit}" >/dev/null 2>&1; then
+  HAS_INTERNAL_BASELINE=true
+  OLD_TAG="$INTERNAL_BASELINE_TAG" \
+    QUERIES=100 \
+    REPEATS=5 \
+    BATCH=8 \
+    scripts/compare-tags.sh \
+      artifacts/hatfield-uk.aegis \
+      artifacts/tag-comparison
+else
+  echo "Skipping internal tag comparison: $INTERNAL_BASELINE_TAG is not present"
+fi
 
 build_one() {
   local os="$1" arch="$2" ext=""
@@ -43,14 +57,26 @@ cp artifacts/tail-replay/regret-replay.json artifacts/tail-replay/regret-replay.
 cp artifacts/tail-replay/trigger-profile.json artifacts/tail-replay/trigger-profile.csv artifacts/tail-replay/trigger-profile.html "$DIST/"
 for f in artifacts/tail-replay/guard-benchmark.json artifacts/tail-replay/guard-benchmark.html artifacts/tail-replay/release-gate.json; do [[ -f "$f" ]] && cp "$f" "$DIST/"; done
 cp artifacts/matrix/benchmark-matrix.json artifacts/matrix/benchmark-matrix.csv artifacts/matrix/benchmark-matrix.html "$DIST/"
-cp artifacts/tag-comparison/summary.md "$DIST/tag-comparison.md"
-cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.11.2.html"
-cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.1.0.html"
+if [[ "$HAS_INTERNAL_BASELINE" == true ]]; then
+  cp artifacts/tag-comparison/summary.md "$DIST/tag-comparison.md"
+  cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.11.2.html"
+  cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.1.0.html"
 
-OLD_TAG=v0.11.2-experimental BENCHTIME=20x COUNT=3 scripts/compare-allocations.sh artifacts/allocation-comparison
-cp artifacts/allocation-comparison/summary.json artifacts/allocation-comparison/summary.md "$DIST/"
-cp artifacts/allocation-comparison/old.txt "$DIST/allocation-v0.11.2.txt"
-cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.1.0.txt"
+  OLD_TAG="$INTERNAL_BASELINE_TAG" \
+    BENCHTIME=20x \
+    COUNT=3 \
+    scripts/compare-allocations.sh artifacts/allocation-comparison
+
+  cp artifacts/allocation-comparison/summary.json \
+     artifacts/allocation-comparison/summary.md \
+     "$DIST/"
+
+  cp artifacts/allocation-comparison/old.txt \
+     "$DIST/allocation-v0.11.2.txt"
+
+  cp artifacts/allocation-comparison/current.txt \
+     "$DIST/allocation-v0.1.0.txt"
+fi
 
 if [[ -f research/tokyo-time-2026-07-18/trigger-profile.json ]]; then
   python3 scripts/check-release-evidence.py research/tokyo-time-2026-07-18
@@ -67,7 +93,7 @@ info={
   'name':'Aegis ACBS','version':version,'commit':commit,
   'builtAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
   'builder':{'platform':platform.platform(),'python':platform.python_version()},
-  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a internal v0.11.2/public v0.1.0 tag comparison, query-level regret diagnosis, an isolated internal v0.11.2/public v0.1.0 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
+  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, an optional internal v0.11.2/public v0.1.0 tag comparison, query-level regret diagnosis, an optional isolated internal v0.11.2/public v0.1.0 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
 }
 open(os.path.join(dist,'BUILD-INFO.json'),'w').write(json.dumps(info,indent=2)+'\n')
 sbom={'bomFormat':'CycloneDX','specVersion':'1.5','serialNumber':'urn:uuid:aegis-acbs-'+version,'version':1,'metadata':{'component':{'type':'application','name':'aegis-acbs','version':version}},'components':[]}
