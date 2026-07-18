@@ -1,0 +1,56 @@
+{
+  "schema": "aegis-acbs-observed-summary-v1",
+  "date": "2026-07-18",
+  "graph": {
+    "name": "tokyo-time",
+    "nodes": 611846,
+    "directedEdges": 1235323
+  },
+  "provenance": "Transcribed from user-run WSL console output; raw machine-readable artifacts must be imported before publication.",
+  "tailValidation": {
+    "queries": 10000,
+    "correct": 10000,
+    "meaningful": 11,
+    "meaningfulRatePercent": 0.11,
+    "wilsonLow95Percent": 0.061435,
+    "wilsonHigh95Percent": 0.19688,
+    "p95PenaltyMs": 0.075,
+    "maxPenaltyMs": 14.469
+  },
+  "isolatedReplay": {
+    "requested": 11,
+    "replayed": 11,
+    "reproduced": 2,
+    "adaptiveSchedulerTail": 1,
+    "persistentClassicalTail": 1,
+    "notReproduced": 9,
+    "allCorrect": true
+  },
+  "guardGate": {
+    "selected": null,
+    "passed": false,
+    "candidates": {
+      "aegis-connect-32": {"gainMs": 0.778, "meanRatio": 1.1595, "medianRatio": 1.043, "p95Ratio": 1.1498, "relaxedRatio": 1.0492, "expandedRatio": 1.0472},
+      "aegis-connect-40": {"gainMs": 0.732, "persistentRegressionMs": 0.341, "meanRatio": 1.1498, "medianRatio": 1.021, "p95Ratio": 1.1552, "relaxedRatio": 1.0252, "expandedRatio": 1.0294},
+      "aegis-connect-32x16": {"gainMs": 0.283, "persistentRegressionMs": 0.185, "meanRatio": 0.9996, "medianRatio": 0.9948, "p95Ratio": 0.9934, "relaxedRatio": 1.0123, "expandedRatio": 1.0246}
+    }
+  },
+  "triggerProfile": {
+    "queries": 10000,
+    "schedulerTails": 1,
+    "persistentTails": 1,
+    "traceErrors": 0,
+    "unstableLabels": 0,
+    "allCorrect": true,
+    "selectedRule": {
+      "checkpoint": 48,
+      "matches": 1,
+      "positiveMatches": 1,
+      "falsePositives": 0,
+      "conditions": [
+        {"feature": "switchRate", "operator": "<=", "threshold": 0.458333333}
+      ]
+    },
+    "promotion": "diagnostic-only"
+  }
+}

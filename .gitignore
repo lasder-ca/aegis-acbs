@@ -8,3 +8,7 @@
 /artifacts/*.aegis
 
 /artifacts/
+__pycache__/
+*.pyc
+/aegis
+/aegis.exe

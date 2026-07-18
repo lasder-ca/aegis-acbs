@@ -1,23 +1,38 @@
-# Aegis ACBS v0.11.2-experimental
+# Aegis ACBS v0.12.0-research-preview
 
-v0.11.2 does not change the default `aegis` search. The three v0.11.1 connection-guard candidates failed the Tokyo 10,000-query release gate: the unbounded variants improved one reproduced scheduler tail but regressed global mean and p95 by about 15%, while the bounded variant preserved latency but did not meet the required tail improvement and increased search work.
+This is the first public research preview of Aegis Coupled-Bound Search.
 
-This release adds whole-suite trigger profiling:
+The default `aegis` search is unchanged from v0.11.2. No rejected guard or in-sample trigger rule has been promoted into the scheduler.
 
-- `profile-trigger` traces every query referenced by a multi-seed validation report once.
-- Only deterministic checkpoint features at chunks 24, 32, 40, and 48 are retained.
-- Replay-confirmed scheduler and persistent tails are used as labels.
-- Interpretable one- and two-condition rules are ranked by recall, total matches, false positives, and the configured maximum trigger population.
-- An eligible rule must cover every confirmed scheduler tail and match no more than five queries by default.
-- Extended opt-in trace telemetry records queue priorities, stale-pop deltas, finite-meeting deltas, connection checks, and cumulative directional work. Normal routing and benchmark runs remain untraced.
+## Public evidence
 
-The purpose is to determine whether the reproduced Tokyo query 877 tail can be distinguished from the other 9,999 queries without broad guard activation. No trigger is promoted into the default scheduler by this release.
+The release publishes both successful and failed Tokyo time-graph experiments:
 
-Known Tokyo evidence retained from v0.11.1:
+- 10,000/10,000 query distances matched Dijkstra.
+- 11 queries initially met the predeclared meaningful-slowdown threshold.
+- Isolated replay retained one adaptive-scheduler tail and one persistent classical tail; nine cases did not reproduce.
+- Three connection-guard candidates were rejected by a predeclared release gate.
+- Whole-suite profiling found an in-sample checkpoint-48 rule matching the one scheduler tail with zero same-suite false positives.
+- The rule remains diagnostic because it has not been validated on an independent city or seed suite.
 
-- 10,000/10,000 shortest paths agreed with Dijkstra.
-- One reproducible adaptive-scheduler tail and one reproducible persistent classical tail were observed.
-- `aegis-connect-32` and `aegis-connect-40` were rejected for approximately 15% global mean/p95 regression.
-- `aegis-connect-32x16` was rejected because its 0.283 ms scheduler-tail gain was below the predeclared 0.500 ms threshold and its expanded-node regression exceeded 1%.
+See `docs/TOKYO_EVIDENCE.md` and `research/tokyo-time-2026-07-18/`.
 
-Research novelty and universal performance superiority are not claimed.
+## Repository hardening
+
+- English primary README and Japanese README.
+- CI on Linux, Windows, and macOS using the current Go toolchain, plus Go 1.23 compatibility testing.
+- Race detector, formatting, vet, cross-build, shell syntax, and Python syntax checks.
+- Release creation uses GitHub CLI directly rather than a third-party release action.
+- Release publication refuses to proceed without the imported raw Tokyo evidence and a clean worktree.
+- Release assets include checksums, a CycloneDX SBOM, source archives, a Git bundle, binaries, and offline reports.
+
+## Non-claims
+
+This release does not claim:
+
+- academic novelty,
+- universal correctness over every graph,
+- universal performance superiority,
+- or that the selected Tokyo trigger generalizes.
+
+The repository is intended for reproducible review and independent validation.

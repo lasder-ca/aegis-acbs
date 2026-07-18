@@ -11,7 +11,7 @@ go test ./...
 go vet ./...
 go test -race ./internal/search ./internal/graph ./internal/bench ./internal/server
 scripts/reproduce.sh
-OLD_TAG=v0.11.1-experimental QUERIES=100 REPEATS=5 BATCH=8 scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
+OLD_TAG=v0.11.2-experimental QUERIES=100 REPEATS=5 BATCH=8 scripts/compare-tags.sh artifacts/hatfield-uk.aegis artifacts/tag-comparison
 
 build_one() {
   local os="$1" arch="$2" ext=""
@@ -20,7 +20,7 @@ build_one() {
   local stage="$(mktemp -d)"
   mkdir -p "$stage/$base"
   GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/lasder-ca/aegis-acbs/internal/version.Version=$VERSION" -o "$stage/$base/aegis$ext" ./cmd/aegis
-  cp README.md LICENSE RELEASE_NOTES.md "$stage/$base/"
+  cp README.md README.ja.md LICENSE RELEASE_NOTES.md "$stage/$base/"
   cp -r docs benchmarks scripts benchdata "$stage/$base/"
   rm -f "$stage/$base/benchdata/hatfield-uk.aegis"
   if [[ "$os" == windows ]]; then
@@ -44,13 +44,20 @@ cp artifacts/tail-replay/trigger-profile.json artifacts/tail-replay/trigger-prof
 for f in artifacts/tail-replay/guard-benchmark.json artifacts/tail-replay/guard-benchmark.html artifacts/tail-replay/release-gate.json; do [[ -f "$f" ]] && cp "$f" "$DIST/"; done
 cp artifacts/matrix/benchmark-matrix.json artifacts/matrix/benchmark-matrix.csv artifacts/matrix/benchmark-matrix.html "$DIST/"
 cp artifacts/tag-comparison/summary.md "$DIST/tag-comparison.md"
-cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.11.1.html"
-cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.11.2.html"
+cp artifacts/tag-comparison/old.html "$DIST/tag-comparison-v0.11.2.html"
+cp artifacts/tag-comparison/current.html "$DIST/tag-comparison-v0.12.0.html"
 
-OLD_TAG=v0.11.1-experimental BENCHTIME=20x COUNT=3 scripts/compare-allocations.sh artifacts/allocation-comparison
+OLD_TAG=v0.11.2-experimental BENCHTIME=20x COUNT=3 scripts/compare-allocations.sh artifacts/allocation-comparison
 cp artifacts/allocation-comparison/summary.json artifacts/allocation-comparison/summary.md "$DIST/"
-cp artifacts/allocation-comparison/old.txt "$DIST/allocation-v0.11.1.txt"
-cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.11.2.txt"
+cp artifacts/allocation-comparison/old.txt "$DIST/allocation-v0.11.2.txt"
+cp artifacts/allocation-comparison/current.txt "$DIST/allocation-v0.12.0.txt"
+
+if [[ -f research/tokyo-time-2026-07-18/trigger-profile.json ]]; then
+  python3 scripts/check-v012-release-evidence.py research/tokyo-time-2026-07-18
+  (cd research && zip -qr "$DIST/tokyo-time-2026-07-18-evidence.zip" tokyo-time-2026-07-18)
+else
+  cp research/tokyo-time-2026-07-18/observed-summary.json "$DIST/tokyo-time-2026-07-18-observed-summary.json"
+fi
 
 python3 - <<PY
 import json, os, platform, subprocess, datetime
@@ -60,7 +67,7 @@ info={
   'name':'Aegis ACBS','version':version,'commit':commit,
   'builtAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
   'builder':{'platform':platform.platform(),'python':platform.python_version()},
-  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a v0.11.1/v0.11.2 tag comparison, query-level regret diagnosis, an isolated v0.11.1/v0.11.2 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
+  'tests':'go test ./...','vet':'go vet ./...','benchmark':'Hatfield real OSM-derived fixture with deterministic interleaved order, ACBS ablations, allocation telemetry, a three-seed distance/time matrix, a v0.11.2/v0.12.0 tag comparison, query-level regret diagnosis, an isolated v0.11.2/v0.12.0 allocation regression comparison and multi-seed regret validation with confidence bounds, and isolated outlier replay with chunk-level traces, whole-suite trigger profiling, and concurrent stress verification'
 }
 open(os.path.join(dist,'BUILD-INFO.json'),'w').write(json.dumps(info,indent=2)+'\n')
 sbom={'bomFormat':'CycloneDX','specVersion':'1.5','serialNumber':'urn:uuid:aegis-acbs-'+version,'version':1,'metadata':{'component':{'type':'application','name':'aegis-acbs','version':version}},'components':[]}

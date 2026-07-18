@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.12.0-research-preview
+
+- Publish the first research-preview repository without changing the default ACBS search.
+- Record the Tokyo 10,000-query correctness, tail validation, isolated replay, rejected guard gate, and narrow diagnostic trigger.
+- Add raw-evidence import and strict release-evidence validation scripts.
+- Add English and Japanese README files and a dedicated evidence/limitations document.
+- Update GitHub Actions to current official checkout/setup-go generations and test Go 1.23 compatibility plus Go 1.26.
+- Replace the third-party GitHub Release action with GitHub CLI.
+- Keep all rejected guard variants diagnostic/experimental only.
+
 ## v0.11.2-experimental
 
 - Kept the default `aegis` scheduler unchanged after every v0.11.1 connection-guard candidate failed the Tokyo release gate.
