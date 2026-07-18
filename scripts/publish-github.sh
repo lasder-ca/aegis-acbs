@@ -4,6 +4,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 VERSION="$(cat VERSION)"
 
+if [[ "$VERSION" == "0.11.2-experimental" ]]; then
+  echo "v0.11.2 publishes the repository only; use scripts/publish-research-repo.sh after the 10,000-query trigger profile" >&2
+  exit 2
+fi
+
 [[ "${AEGIS_PUBLISH_CONFIRM:-}" == "YES" ]] || {
   echo "refusing to publish: set AEGIS_PUBLISH_CONFIRM=YES after reviewing the release" >&2
   exit 2

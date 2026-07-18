@@ -1,5 +1,5 @@
 package version
 
-var Version = "0.11.0-experimental"
+var Version = "0.11.2-experimental"
 
 const Name = "Aegis ACBS"

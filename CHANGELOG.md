@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.11.2-experimental
+
+- Kept the default `aegis` scheduler unchanged after every v0.11.1 connection-guard candidate failed the Tokyo release gate.
+- Added `profile-trigger` to trace all validation queries at deterministic chunk checkpoints.
+- Added checkpoint features for lower-bound progress, frontier growth, queue and score imbalance, priority imbalance, stale rate, finite-meeting rate, directional work balance, and cumulative work.
+- Added ranked one- and two-condition trigger-rule search with a configurable whole-suite match cap.
+- Added JSON, CSV, and self-contained HTML trigger-profile reports.
+- Extended opt-in ACBS trace events without adding telemetry to the normal hot path.
+
 ## v0.11.1-experimental
 
 - Added three connection-guard candidates: chunk 32 until upper bound, chunk 40 until upper bound, and chunk 32 with a 16-chunk cap.

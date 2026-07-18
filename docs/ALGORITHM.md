@@ -196,3 +196,22 @@ When eligible, the search uses the static lower-key scheduler and base edge budg
 ## Experimental connection guards (v0.11.1)
 
 The v0.11.0 late guard did not materially improve the reproduced scheduler tail. v0.11.1 therefore evaluates three earlier or longer balanced-scheduling intervals. They modify scheduling only; feasible potentials, upper/lower bounds, termination, and exactness are unchanged. None is part of the default `aegis` algorithm until the Tokyo release gate selects it.
+
+## Whole-suite trigger profiling (v0.11.2)
+
+The v0.11.1 connection guards demonstrated that a condition broad enough to improve the reproduced Tokyo scheduler tail can activate on too many normal queries. v0.11.2 therefore adds diagnosis rather than another scheduler mutation.
+
+`profile-trigger` runs the unchanged default ACBS once for every query referenced by a validation report. At configured chunk checkpoints it stores only deterministic scheduler state:
+
+- cumulative and recent lower-bound gain per normalized work,
+- direction-switch rate,
+- forward/backward score, queue, priority, and directional-work imbalance,
+- frontier growth,
+- stale-pop rate,
+- finite-meeting rate,
+- queue population and cumulative work,
+- whether a finite upper bound already exists.
+
+Replay-confirmed `adaptive-scheduler-tail` cases are positive labels. The profiler enumerates interpretable one- and two-threshold rules, always requiring the upper bound to remain missing at the checkpoint. Rules are ranked by complete positive recall, total matches, false positives, and simplicity. The default eligibility cap is five matches across the whole validation suite.
+
+This process does not alter search order, bounds, potentials, termination, or exactness. A selected rule is diagnostic evidence only and must be validated on independent seeds and cities before being implemented as a scheduler condition.

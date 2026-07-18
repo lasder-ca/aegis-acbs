@@ -47,6 +47,8 @@ func main() {
 		err = validateRegret(os.Args[2:])
 	case "replay-regret":
 		err = replayRegret(os.Args[2:])
+	case "profile-trigger":
+		err = profileTrigger(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "inspect":
@@ -77,6 +79,7 @@ Usage:
   aegis diagnose --input benchmark.json --output regret.json --csv regret.csv --html regret.html
   aegis validate-regret --input-dir validation --min-queries 10000 --output validation.json --csv validation.csv --html validation.html
   aegis replay-regret --graph city.aegis --validation validation.json --input-root validation --output replay.json --csv replay.csv --html replay.html
+  aegis profile-trigger --graph city.aegis --validation validation.json --replay replay.json --input-root validation --output trigger-profile.json
   aegis serve --graph city.aegis --listen 127.0.0.1:8787
   aegis inspect --graph city.aegis
 `, version.Name, version.Version)
@@ -521,6 +524,96 @@ func replayRegret(args []string) error {
 	}
 	if !report.AllCorrect {
 		return errors.New("one or more replayed algorithms returned an incorrect path")
+	}
+	return nil
+}
+
+func profileTrigger(args []string) error {
+	fs := flag.NewFlagSet("profile-trigger", flag.ContinueOnError)
+	graphPath := fs.String("graph", "", "Aegis graph used by the validation benchmark reports")
+	validationPath := fs.String("validation", "", "regret-validation JSON report")
+	replayPath := fs.String("replay", "", "isolated regret-replay JSON with confirmed labels")
+	inputRoot := fs.String("input-root", "", "root for source report paths; defaults to validation directory")
+	checkpointsText := fs.String("checkpoints", "24,32,40,48", "comma-separated scheduler chunk checkpoints")
+	timeout := fs.Duration("timeout", 30*time.Second, "per-search timeout")
+	maxMatches := fs.Int("max-matches", 5, "maximum whole-suite matches for an eligible trigger")
+	topRules := fs.Int("top-rules", 20, "number of ranked rule candidates to retain")
+	labelRepeats := fs.Int("label-repeats", 3, "deterministic trace repetitions for replay-labelled tails")
+	output := fs.String("output", "trigger-profile.json", "profile JSON output")
+	csvOut := fs.String("csv", "trigger-profile.csv", "profile CSV output; empty disables")
+	htmlOut := fs.String("html", "trigger-profile.html", "self-contained profile HTML output; empty disables")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *graphPath == "" || *validationPath == "" || *replayPath == "" {
+		return errors.New("--graph, --validation, and --replay are required")
+	}
+	var checkpoints []uint64
+	for _, part := range strings.Split(*checkpointsText, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		v, err := strconv.ParseUint(part, 10, 64)
+		if err != nil || v == 0 {
+			return fmt.Errorf("invalid checkpoint %q", part)
+		}
+		checkpoints = append(checkpoints, v)
+	}
+	if len(checkpoints) == 0 {
+		return errors.New("at least one checkpoint is required")
+	}
+	g, err := graph.Load(*graphPath)
+	if err != nil {
+		return err
+	}
+	report, err := bench.ProfileSchedulerTriggers(context.Background(), g, *validationPath, *replayPath, *inputRoot, bench.TriggerProfileConfig{
+		Checkpoints: checkpoints, Timeout: *timeout, MaxMatches: *maxMatches, TopRules: *topRules, LabelRepeats: *labelRepeats,
+	})
+	if err != nil {
+		return err
+	}
+	if err := bench.WriteTriggerProfileJSON(*output, report); err != nil {
+		return err
+	}
+	if *csvOut != "" {
+		if err := bench.WriteTriggerProfileCSV(*csvOut, report); err != nil {
+			return err
+		}
+	}
+	if *htmlOut != "" {
+		if err := bench.WriteTriggerProfileHTML(*htmlOut, report); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("trigger-profile queries=%d scheduler-tails=%d persistent=%d errors=%d unstable-labels=%d selected=%v correct=%v\n", report.Queries, report.SchedulerTails, report.PersistentTails, report.TraceErrors, report.UnstableLabels, report.SelectedRule != nil, report.AllCorrect)
+	for i, rule := range report.Rules {
+		if i >= 10 {
+			break
+		}
+		fmt.Printf("rule           checkpoint=%d eligible=%v matches=%d positives=%d false-positive=%d precision=%.3f recall=%.3f conditions=", rule.Checkpoint, rule.Eligible, rule.Matches, rule.PositiveMatches, rule.FalsePositives, rule.Precision, rule.Recall)
+		for j, condition := range rule.Conditions {
+			if j > 0 {
+				fmt.Print(" && ")
+			}
+			fmt.Printf("%s%s%.6g", condition.Feature, condition.Operator, condition.Threshold)
+		}
+		fmt.Println()
+	}
+	if report.SelectedRule != nil {
+		fmt.Printf("SELECTED       checkpoint=%d matches=%d false-positive=%d\n", report.SelectedRule.Checkpoint, report.SelectedRule.Matches, report.SelectedRule.FalsePositives)
+	} else {
+		fmt.Println("SELECTED       none")
+	}
+	fmt.Println("trigger profile:", *output)
+	if *csvOut != "" {
+		fmt.Println("trigger csv:", *csvOut)
+	}
+	if *htmlOut != "" {
+		fmt.Println("trigger visual report:", *htmlOut)
+	}
+	if !report.AllCorrect {
+		return errors.New("one or more profiled queries returned an incorrect path")
 	}
 	return nil
 }

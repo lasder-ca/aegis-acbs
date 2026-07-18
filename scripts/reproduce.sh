@@ -54,3 +54,14 @@ bin/aegis replay-regret \
   --output artifacts/tail-replay/regret-replay.json \
   --csv artifacts/tail-replay/regret-replay.csv \
   --html artifacts/tail-replay/regret-replay.html
+
+bin/aegis profile-trigger \
+  --graph artifacts/repro-graphs/hatfield-time.aegis \
+  --validation artifacts/tail-replay/regret-validation.json \
+  --replay artifacts/tail-replay/regret-replay.json \
+  --input-root artifacts/tail-validation \
+  --checkpoints 1,2,4,8 \
+  --max-matches 5 \
+  --output artifacts/tail-replay/trigger-profile.json \
+  --csv artifacts/tail-replay/trigger-profile.csv \
+  --html artifacts/tail-replay/trigger-profile.html
