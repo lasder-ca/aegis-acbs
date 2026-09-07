@@ -3,6 +3,7 @@
 <h1>aegis</h1>
 <p><strong>ACBS</strong></p>
 
+AI is used in this project
 **Bidirectional shortest-path search that preserves optimality.**
 
 <sub>Road-graph research CLI · OSM / DIMACS · JSON / CSV / self-contained HTML reports</sub>
