@@ -3,7 +3,6 @@
 <h1>aegis</h1>
 <p><strong>ACBS</strong></p>
 
-AI is used in this project
 **Bidirectional shortest-path search that preserves optimality.**
 
 <sub>Road-graph research CLI · OSM / DIMACS · JSON / CSV / self-contained HTML reports</sub>
@@ -23,6 +22,9 @@ AI is used in this project
 ---
 
 Aegis Coupled-Bound Search advances forward and reverse frontiers inside one exact search. Both directions share an admissible lower bound, while the best complete route found so far supplies an upper bound. An adaptive scheduler assigns the next edge-work chunk to the frontier that is making more useful lower-bound progress.
+
+> [!NOTE]
+> **AI usage disclosure:** AI tools were used for most of the development of Aegis ACBS.
 
 > [!IMPORTANT]
 > ACBS is published as a reproducible research prototype. Academic novelty and performance generalization have not yet been independently established.
